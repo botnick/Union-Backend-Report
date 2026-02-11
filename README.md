@@ -1,103 +1,72 @@
-# Mail.tm & MicoWorld Node.js Library
+# Union Backend Report Library
 
-A powerful, type-safe, and easy-to-use Node.js client for **Mail.tm** and **MicoWorld Union Authentication**.
+A powerful, type-safe Node.js library for managing MicoWorld Union reports. It integrates **Mail.tm** (for temp emails), **MicoWorld API** (for data), and **Excel Processing** (for beautiful reports).
 
-## Features
+## 📚 Documentation Table of Contents
 
-- **🚀 Mail.tm Integration**: Temp email creation, polling, attachments.
-- **🔐 MicoWorld Auth**: Persistent login with cookie session support.
-- **⚡ TypeScript**: Fully typed for IntelliSense.
-- **📂 Convenience**: Helper methods for instant setup.
-- **🛡️ Robustness**: Auto-detects rate limits (cooldowns) and retries automatically.
-
-## Installation
-
-```bash
-npm install axios dotenv
-# Copy the src folder to your project or build as a package
-```
+| Library | Description | Link |
+| :--- | :--- | :--- |
+| **MicoClient** | Authentication, Union Stats, Income Records, H5 Data | [📄 Read Docs](./MicoClient.md) |
+| **MailTm** | Temporary Email, Polling, Attachments | [📄 Read Docs](./MailTm.md) |
+| **ExcelProcessor** | Excel file styling and beautification | [📄 Read Docs](./ExcelProcessor.md) |
 
 ---
 
-# Part 1: Mail.tm (Temporary Email)
+## 🚀 Quick Start (The "Facade")
 
-### Quick Start (Easy Mode)
+The easiest way to generate a report is using the `MicoReportManager`. It handles everything in one line:
 
 ```typescript
-import { MailTm } from './src/index.js'; 
+import { MicoReportManager } from './src/index.js';
 
-async function mailMain() {
-    const client = new MailTm();
+async function main() {
+    const manager = new MicoReportManager();
 
-    // 1. Create a random account and login instantly
-    const { account } = await client.createRandomAccount();
-    console.log(`Using Email: ${account.address}`);
+    // 1. Initialize (Login/Session Check)
+    await manager.init();
 
-    // 2. Listen for new emails
-    client.on('message', async (msg) => {
-        console.log(`\nNew Email: ${msg.subject}`);
+    // 2. Generate Report (Email -> Export -> Download -> Beautify)
+    const reportPath = await manager.generateMonthlyReport('2/2026');
 
-        // 3. Download attachments automatically
-        if (msg.hasAttachments) {
-            const files = await client.downloadAllAttachments(msg, './downloads');
-            console.log(`Saved attachments:`, files);
-        }
-    });
-
-    // 4. Start polling
-    client.startPolling(3000);
+    console.log(`✅ Report Ready: ${reportPath}`);
 }
+
+main();
 ```
 
-### API Reference
-- `createRandomAccount()`: Instant setup.
-- `downloadAllAttachments(msg, dir)`: Parallel download.
-- `startPolling(interval)`: Async-safe polling.
+## 🛠️ Installation
 
----
+1. **Install Dependencies**:
+   ```bash
+   npm install axios dotenv exceljs
+   ```
 
-# Part 2: MicoWorld Auth Library
-
-A persistent authentication client for MicoWorld Union API.
-
-### Features
-- **💾 Persistence**: Saves token and cookies to `.mico_token`.
-- **🔄 Auto-Refresh**: Checks session validity on init and re-logins if needed.
-- **🔐 Secure Credentials**: Uses `.env` for user/pass.
-
-### Setup
-
-1. Create a `.env` file in your project root:
+2. **Configure Environment (`.env`)**:
    ```ini
    MICO_USERNAME="your_username"
    MICO_PASSWORD="your_password"
    ```
 
-2. Usage:
+## ✨ Key Features
 
-   ```typescript
-   import { MicoClient } from './src/index.js';
+- **🔐 Persistent Auth**: Automatically saves/loads session tokens and cookies.
+- **🛡️ Robustness**: Auto-detects export rate limits (cooldowns) and retries automatically (`MicoClient`).
+- **📧 Temp Email**: Built-in temp email generation for receiving exports (`MailTm`).
+- **📊 H5 Records**: Retrieval of H5 game/live records with 6-month validation.
+- **🎨 Excel Styling**: Auto-formatting of raw exports into "Flower Union" theme (`ExcelProcessor`).
 
-   async function micoMain() {
-       const client = new MicoClient();
-       
-       // Initializes session (Login or Load from file)
-       // Automatically refresh if token expired
-       await client.init();
+## 📁 Project Structure
 
-       const user = client.getUser();
-       if (user) {
-           console.log(`Logged in as: ${user.username}`);
-           console.log(`Role: ${user.role}`);
-       }
-       
-       // client.api is an Axios instance with Auth headers pre-configured
-       // const data = await client.api.get('/some/endpoint');
-   }
-   
-   micoMain();
-   ```
+```
+src/
+├── lib/
+│   ├── MicoClient.ts       # Core MicoWorld API Logic
+│   ├── MailTm.ts           # Temp Email & Polling
+│   ├── ExcelProcessor.ts   # Excel Beautification
+│   └── MicoReportManager.ts# Facade (Orchestrator)
+├── types/                  # TypeScript Definitions
+└── index.ts                # Main Export
+```
 
 ## License
-
 MIT
