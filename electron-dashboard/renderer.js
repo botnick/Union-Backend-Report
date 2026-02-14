@@ -205,7 +205,15 @@ function addLog(source, message, customClass = '') {
 }
 
 document.getElementById('clear-logs').addEventListener('click', () => {
-    logOutput.innerHTML = '<div class="text-accent/40 opacity-50 mb-4 font-bold border-b border-slate-800 pb-2">LOG BUFFER PURGED</div>';
+    logOutput.innerHTML = '<div class="text-accent/40 text-[10px] font-black mb-6 border-b border-white/5 pb-2 uppercase tracking-[0.2em]">Log Buffer Cleared</div>';
+});
+
+// Open Logs Folder
+document.getElementById('open-logs-btn').addEventListener('click', async () => {
+    const result = await window.electronAPI.openLogsFolder();
+    if (!result) {
+        logOutput.innerHTML += '<div class="text-red-500 font-bold mt-1">Found no logs to open (folder might be empty or project not selected)</div>';
+    }
 });
 
 // ENV & Token Handlers

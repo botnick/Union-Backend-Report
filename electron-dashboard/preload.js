@@ -18,5 +18,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onTriggerStart: (callback) => ipcRenderer.on('trigger-start', () => callback()),
     onTriggerStop: (callback) => ipcRenderer.on('trigger-stop', () => callback()),
     getSettings: () => ipcRenderer.invoke('get-settings'),
-    saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings)
+    saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+    openLogsFolder: () => ipcRenderer.invoke('open-logs-folder')
 });

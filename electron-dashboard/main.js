@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, shell } = require('electron');
 const path = require('path');
 const { spawn, execSync } = require('child_process');
 const fs = require('fs');
@@ -11,7 +11,9 @@ let serverProcess = null;
 let isQuitting = false;
 
 let rootDir = '';
-const CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
+// Portable Config: Store config.json next to the executable (or main.js in dev)
+const BASE_PATH = app.isPackaged ? path.dirname(process.execPath) : __dirname;
+const CONFIG_PATH = path.join(BASE_PATH, 'config.json');
 
 let appSettings = {
     autoRestart: false,
@@ -147,22 +149,21 @@ if (!gotTheLock) {
 // Hard Exit Logic: Quit immediately on window close
 app.on('window-all-closed', () => {
     if (serverProcess) {
-        killProcess(serverProcess.pid);
+        killProcessTree(serverProcess.pid);
     }
     app.quit();
 });
 
-function killProcess(pid) {
+function killProcessTree(pid) {
+    if (!pid) return;
     try {
-        // Force kill the process tree on Windows
         if (process.platform === 'win32') {
             execSync(`taskkill /pid ${pid} /f /t`);
         } else {
-            // On other platforms, a simple kill should suffice
             process.kill(pid, 'SIGKILL');
         }
     } catch (e) {
-        console.error('Failed to kill process:', e);
+        console.error(`Failed to kill process ${pid}:`, e);
     }
 }
 
@@ -215,17 +216,113 @@ ipcMain.handle('save-token', (event, content) => {
     return true;
 });
 
-ipcMain.handle('start-server', () => {
+// Helper: Detect Entry Point
+function detectEntryPoint(root) {
+    const candidates = [
+        'lark_server.js',
+        path.join('dist', 'lark_server.js'),
+        'lark_server.ts'
+    ];
+    
+    for (const candidate of candidates) {
+        if (fs.existsSync(path.join(root, candidate))) return candidate;
+    }
+    return null;
+}
+
+// Helper: Start Node Process
+function startNodeProcess(root, entryScript, env) {
+    const isTs = entryScript.endsWith('.ts');
+    let runtimeCmd;
+    let args;
+
+    if (isTs) {
+        // Try to find local tsx to avoid npx overhead and global cache logs
+        const localTsx = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx');
+        
+        if (fs.existsSync(localTsx)) {
+            // Use local binary directly
+            runtimeCmd = localTsx;
+            args = [entryScript];
+        } else {
+            // Fallback to npx (should rarely happen if node_modules check passes)
+            runtimeCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+            args = ['tsx', entryScript];
+        }
+    } else {
+        // Production: Use direct node execution
+        runtimeCmd = process.platform === 'win32' ? 'node.exe' : 'node';
+        args = [entryScript];
+    }
+    
+    return spawn(runtimeCmd, args, {
+        cwd: root,
+        shell: true,
+        env: env,
+        windowsHide: true
+    });
+}
+
+
+// Helper: Install Dependencies
+async function installDependencies(root, mainWindow) {
+    return new Promise((resolve, reject) => {
+        const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+        mainWindow.webContents.send('server-log', '[SYSTEM] 📦 node_modules missing. Installing production dependencies...');
+        
+        const installProcess = spawn(npmCmd, ['install', '--production', '--no-bin-links'], {
+            cwd: root,
+            shell: true
+        });
+
+        installProcess.stdout.on('data', (data) => {
+            mainWindow.webContents.send('server-log', `[NPM] ${data}`);
+        });
+
+        installProcess.stderr.on('data', (data) => {
+            mainWindow.webContents.send('server-log', `[NPM] ${data}`);
+        });
+
+        installProcess.on('close', (code) => {
+            if (code === 0) {
+                mainWindow.webContents.send('server-log', '[SYSTEM] ✅ Dependencies installed successfully.');
+                resolve(true);
+            } else {
+                mainWindow.webContents.send('server-log', `[SYSTEM] ❌ NPM Install failed with code ${code}`);
+                resolve(false);
+            }
+        });
+    });
+}
+
+ipcMain.handle('start-server', async () => {
     if (serverProcess) return { success: false, message: 'Server already running' };
     if (!rootDir) return { success: false, message: 'Please select a project folder first' };
 
-    const packageJson = path.join(rootDir, 'package.json');
-    if (!fs.existsSync(packageJson)) {
-        return { success: false, message: 'package.json not found in project directory' };
+    const entryScript = detectEntryPoint(rootDir);
+    if (!entryScript) {
+        return { success: false, message: 'Could not find lark_server.js (in root or dist/) or lark_server.ts' };
     }
 
-    const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    
+    // Auto-Install Dependencies if missing
+    // Check local node_modules first
+    if (!fs.existsSync(path.join(rootDir, 'node_modules'))) {
+        // If not found, check if package.json exists to allow install
+        if (fs.existsSync(path.join(rootDir, 'package.json'))) {
+             const success = await installDependencies(rootDir, mainWindow);
+             if (!success) return { success: false, message: 'Failed to install dependencies' };
+        } else {
+             // If NO package.json and NO node_modules, maybe it's in parent (dev mode / dist check)
+             // But if running from a Standalone Dist, package.json SHOULD be there.
+             
+             // Fallback check for parent node_modules (legacy/dev support)
+             if (!fs.existsSync(path.join(rootDir, '..', 'node_modules'))) {
+                  // If completely missing, warn user
+                  mainWindow.webContents.send('server-log', '[WARN] node_modules not found. Attempting to run anyway...');
+             }
+        }
+    }
+
     // Explicitly read the .env file from the project root
     const envPath = path.join(rootDir, '.env');
     let projectEnv = {};
@@ -236,12 +333,7 @@ ipcMain.handle('start-server', () => {
     // Merge process.env with projectEnv, prioritizing projectEnv
     const finalEnv = Object.assign({}, process.env, projectEnv);
     
-    serverProcess = spawn(npmCmd, ['run', 'start:prod'], {
-        cwd: rootDir,
-        shell: true,
-        env: finalEnv,
-        windowsHide: true
-    });
+    serverProcess = startNodeProcess(rootDir, entryScript, finalEnv);
 
     if (!serverProcess) return { success: false, message: 'Failed to start process' };
 
@@ -254,7 +346,9 @@ ipcMain.handle('start-server', () => {
         if (!fs.existsSync(logDir)) {
             try { fs.mkdirSync(logDir); } catch(e) {}
         }
-        const logPath = path.join(logDir, 'mico-server.log');
+        // Daily Log Rotation: server-YYYY-MM-DD.log
+        const today = new Date().toISOString().split('T')[0];
+        const logPath = path.join(logDir, `server-${today}.log`);
         const timestamp = new Date().toISOString();
         try { fs.appendFileSync(logPath, `[${timestamp}] ${message}\n`); } catch(e) {}
     };
@@ -303,19 +397,8 @@ ipcMain.handle('start-server', () => {
 ipcMain.handle('stop-server', (event, force = false) => {
     if (!serverProcess) return { success: false, message: 'Server not running' };
 
-    try {
-        if (process.platform === 'win32') {
-            spawn('taskkill', ['/pid', serverProcess.pid, '/f', '/t']);
-        } else {
-             if (force) {
-                serverProcess.kill('SIGKILL');
-            } else {
-                serverProcess.kill();
-            }
-        }
-    } catch (e) {
-        return { success: false, message: e.message };
-    }
+    killProcessTree(serverProcess.pid);
+    serverProcess = null;
 
     updateTrayMenu();
     return { success: true };
@@ -323,6 +406,16 @@ ipcMain.handle('stop-server', (event, force = false) => {
 
 ipcMain.handle('get-status', () => {
     return serverProcess ? 'running' : 'stopped';
+});
+
+ipcMain.handle('open-logs-folder', async () => {
+    if (!rootDir) return false;
+    const logDir = path.join(rootDir, 'logs');
+    if (fs.existsSync(logDir)) {
+        await shell.openPath(logDir);
+        return true;
+    }
+    return false;
 });
 
 ipcMain.handle('get-settings', () => appSettings);

@@ -26,13 +26,9 @@
     </script>
 </head>
 
-<body class="bg-primary text-slate-100 h-screen overflow-hidden font-sans select-none animate-fade-in text-[14px]">
-    <!-- Background Glows -->
-    <div
-        class="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-pink-600/20 blur-[120px] rounded-full z-0 p-32 bg-animate">
-    </div>
-    <div class="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-rose-600/20 blur-[120px] rounded-full z-0 bg-animate"
-        style="animation-delay: -5s"></div>
+<body class="bg-primary text-slate-100 h-screen overflow-hidden font-sans select-none text-[14px]">
+    <!-- RDP Optimized Background: Solid Gradient handled in CSS -->
+    <div class="fixed inset-0 z-0 bg-gradient-to-br from-slate-900 to-slate-950"></div>
 
     <div class="flex h-screen w-full relative z-10 p-3 gap-3">
         <!-- Sidebar -->
@@ -275,9 +271,19 @@
                                 <h3 class="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Live Engine
                                     Console</h3>
                             </div>
-                            <button id="clear-logs"
-                                class="text-slate-500 hover:text-white text-[9px] font-black tracking-widest transition-colors uppercase">Clear
-                                Buffer</button>
+                            <div class="flex gap-4">
+                                <button id="open-logs-btn"
+                                    class="text-accent hover:text-white text-[9px] font-black tracking-widest transition-colors uppercase flex items-center gap-1 group">
+                                    <svg class="w-3 h-3 group-hover:scale-110 transition-transform" fill="none"
+                                        stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Open Logs</button>
+                                <button id="clear-logs"
+                                    class="text-slate-500 hover:text-white text-[9px] font-black tracking-widest transition-colors uppercase">Clear
+                                    Buffer</button>
+                            </div>
                         </div>
                         <div id="log-output"
                             class="flex-1 glass-card bg-black/40 p-8 font-mono text-[13px] leading-relaxed overflow-y-auto shadow-inner border-white/[0.03]">

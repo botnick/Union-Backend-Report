@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "package": "rimraf dist && electron-packager . \"Mico Dashboard\" --platform=win32 --arch=x64 --out=dist --overwrite --icon=assets/icon.ico --asar",
+    "start:prod": "node ../dist/lark_server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "devDependencies": {
