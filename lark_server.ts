@@ -1,6 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import { LarkBot, LarkCardContent } from './src/lib/LarkBot.ts';
+import { LarkBot, LarkCardContent } from './src/lib/LarkBot.js';
 
 dotenv.config();
 
@@ -20,7 +20,7 @@ app.use((req, res, next) => {
     next();
 });
 
-import { ReportController } from './src/lib/ReportController.ts';
+import { ReportController } from './src/lib/ReportController.js';
 
 const bot = new LarkBot();
 const reportController = new ReportController(bot);

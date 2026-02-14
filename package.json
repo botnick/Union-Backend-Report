@@ -11,7 +11,10 @@
     "demo:lark": "tsx demo/demo_lark.ts",
     "demo:export": "tsx demo/demo_export.ts",
     "demo:pipeline": "tsx demo/full_pipeline.ts",
-    "demo:excel": "tsx demo/demo_excel.ts"
+    "demo:excel": "tsx demo/demo_excel.ts",
+    "build": "tsc",
+    "build:standalone": "node scripts/build-standalone.cjs",
+    "start:prod": "node dist/lark_server.js"
   },
   "dependencies": {
     "axios": "^1.6.7",

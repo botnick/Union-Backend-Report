@@ -1,4 +1,3 @@
-
 {
   "compilerOptions": {
     "target": "es2020",
@@ -10,7 +9,10 @@
     "skipLibCheck": true,
     "outDir": "./dist"
   },
-  "include": ["src/**/*", "demo.ts"],
+  "include": [
+    "src/**/*",
+    "lark_server.ts"
+  ],
   "ts-node": {
     "esm": true,
     "experimentalSpecifiers": true

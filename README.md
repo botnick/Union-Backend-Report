@@ -49,14 +49,51 @@ async function main() {
    LARK_APP_SECRET="your_app_secret"
    ```
 
+## 🚀 Production Deployment (Standalone)
+
+The recommended way to deploy is using the **Standalone Build**. This creates a fully portable `dist/` folder containing the compiled code and all necessary production dependencies.
+
+### 1. Create Standalone Build
+Run the following command to generate a self-contained `dist/` folder:
+
+```bash
+npm run build:standalone
+```
+
+This will:
+- Clean and recreate the `dist/` directory.
+- Compile TypeScript source code.
+- Copy `package.json` and `.env.example`.
+- Install **production-only** dependencies inside `dist/node_modules`.
+
+### 2. Deploy
+Simply copy the `dist/` folder to your target server (Windows Server, VPS, etc.). It requires **no additional `npm install`** on the destination machine.
+
+### 3. Run
+You can run the server directly using Node.js:
+```bash
+node lark_server.js
+# (Ensure you are inside the dist/ folder)
+```
+
+> [!TIP]
+> Use the **Electron Dashboard** for the easiest management experience. It supports selecting this `dist/` folder directly.
+
 ## 🖥️ Mico Dashboard (GUI)
 
 A dedicated desktop app is available in the `electron-dashboard/` folder to manage the bot server effortlessly. [Read the Dashboard Docs](./docs/ElectronDashboard.md) for more details.
+
+**Key Features:**
+- **Portable Mode**: Configuration (`config.json`) is stored next to the executable, making the app fully portable (USB/Server ready).
+- **RDP Optimized**: UI automatically uses solid colors and minimal animations for smooth performance on Windows Server / RDP sessions.
+- **Log Management**: Integrated log viewer with daily rotation and direct file access.
 
 ## 📁 Project Structure
 
 ```
 ├── docs/                   # 📚 Project Documentation
+├── scripts/
+│   └── build-standalone.cjs # 📦 Build Script
 ├── src/
 │   ├── lib/
 │   │   ├── MicoClient.ts       # Core API Logic
@@ -66,7 +103,8 @@ A dedicated desktop app is available in the `electron-dashboard/` folder to mana
 │   │   └── ExcelProcessor.ts   # Excel Beautification
 │   └── index.ts                # Main Entry
 ├── electron-dashboard/     # 🖥️ Desktop GUI App
-└── lark_server.ts          # 🤖 Bot Server Entry Point
+├── lark_server.ts          # 🤖 Bot Server Entry Point
+└── dist/                   # 🚀 Production Build (Generated)
 ```
 
 ## License

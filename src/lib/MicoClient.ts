@@ -50,7 +50,7 @@ export class MicoClient {
         this.api.interceptors.request.use(config => {
             // Ensure headers object exists
             if (!config.headers) {
-                config.headers = {};
+                config.headers = new axios.AxiosHeaders();
             }
 
             if (this.token) {

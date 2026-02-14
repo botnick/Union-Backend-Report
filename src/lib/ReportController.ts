@@ -962,7 +962,7 @@ export class ReportController {
             (response.data as NodeJS.ReadableStream).pipe(writer);
 
             await new Promise((resolve, reject) => {
-                writer.on('finish', resolve);
+                writer.on('finish', () => resolve(null));
                 writer.on('error', reject);
             });
 
