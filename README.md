@@ -86,6 +86,7 @@ A dedicated desktop app is available in the `electron-dashboard/` folder to mana
 **Key Features:**
 - **Portable Mode**: Configuration (`config.json`) is stored next to the executable, making the app fully portable (USB/Server ready).
 - **RDP Optimized**: UI automatically uses solid colors and minimal animations for smooth performance on Windows Server / RDP sessions.
+- **Smart Execution**: Auto-detects entry points and **automatically installs missing dependencies** (Auto-`npm install`) when needed.
 - **Log Management**: Integrated log viewer with daily rotation and direct file access.
 
 ## 📁 Project Structure
