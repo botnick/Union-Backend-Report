@@ -219,12 +219,12 @@ ipcMain.handle('start-server', () => {
     if (serverProcess) return { success: false, message: 'Server already running' };
     if (!rootDir) return { success: false, message: 'Please select a project folder first' };
 
-    const serverScript = path.join(rootDir, 'lark_server.ts');
-    if (!fs.existsSync(serverScript)) {
-        return { success: false, message: 'lark_server.ts not found in project directory' };
+    const packageJson = path.join(rootDir, 'package.json');
+    if (!fs.existsSync(packageJson)) {
+        return { success: false, message: 'package.json not found in project directory' };
     }
 
-    const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+    const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
     
     // Explicitly read the .env file from the project root
     const envPath = path.join(rootDir, '.env');
@@ -236,7 +236,7 @@ ipcMain.handle('start-server', () => {
     // Merge process.env with projectEnv, prioritizing projectEnv
     const finalEnv = Object.assign({}, process.env, projectEnv);
     
-    serverProcess = spawn(npxCmd, ['tsx', 'lark_server.ts'], {
+    serverProcess = spawn(npmCmd, ['run', 'start:prod'], {
         cwd: rootDir,
         shell: true,
         env: finalEnv,
