@@ -87,8 +87,21 @@ const income = await client.getIncomeLiveRecord(64206498);
 console.log(`Total Income: ${income.diamond_detail.history.total}`);
 ```
 
-const income = await client.getIncomeLiveRecord(64206498);
-console.log(`Total Income: ${income.diamond_detail.history.total}`);
+#### `getIncomeStatMonth(startTime, endTime, page?, pageSize?)`
+Retrieves detailed streamer statistics for a specific period (paginated).
+
+**Parameters:**
+- `startTime` (string): Format `M/YYYY` (e.g., "2/2026").
+- `endTime` (string): Format `M/YYYY`.
+- `page` (number, default 1): Page number.
+- `pageSize` (number, default 10): Results per page.
+
+**Returns:** `Promise<any>` (Returns the data object containing results list and count)
+
+**Example:**
+```typescript
+const stats = await client.getIncomeStatMonth('2/2026', '2/2026', 1, 20);
+console.log(stats.results);
 ```
 
 #### `exportStreamerStatistics(startTime, endTime, email)`

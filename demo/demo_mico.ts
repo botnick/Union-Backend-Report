@@ -1,5 +1,5 @@
 
-import { MicoClient } from './src/index.js';
+import { MicoClient } from '../src/index.ts';
 
 async function main() {
     console.log('Initializing MicoClient...');
@@ -11,18 +11,18 @@ async function main() {
         const user = client.getUser();
         if (user) {
             console.log('------------------------------------------------');
-            console.log('Successfully Authenticated!');
-            console.log(`Username: ${user.username}`);
-            console.log(`ID:       ${user.id}`);
-            console.log(`Role:     ${user.role}`);
-            console.log(`Region:   ${user.region}`);
+            console.log('🌸 Successfully Authenticated! 🌸');
+            console.log(`👤 Username: ${user.username}`);
+            console.log(`🆔 ID:       ${user.id}`);
+            console.log(`✨ Role:     ${user.role}`);
+            console.log(`🌍 Region:   ${user.region}`);
             console.log('------------------------------------------------');
 
             // Test Union Statistics
-            console.log('Fetching Union Statistics for 2026-02...');
+            console.log('📊 Fetching Union Statistics for 2026-02...');
             const stats = await client.getUnionStatisticsMonthly('2026-02', '2026-02');
-            console.log(`Total Wage: ${stats.sum_wage}`);
-            console.log(`Results Count: ${stats.results.length}`);
+            console.log(`💰 Total Wage: ${stats.sum_wage}`);
+            console.log(`📈 Results Count: ${stats.results.length}`);
             if (stats.results.length > 0) {
                 console.log('Sample Data:', JSON.stringify(stats.results[0], null, 2));
             }

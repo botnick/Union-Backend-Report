@@ -1,16 +1,17 @@
 
-import { MicoClient } from './src/index.js';
+import { MicoClient } from '../src/index.ts';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 async function main() {
+    console.log('🌸 Starting H5 Record Demo...');
     const client = new MicoClient();
     await client.init();
 
     // 1. Get UID from Income Live Record first (using a valid userId)
     const userId = 64206498;
-    console.log(`Step 1: Fetching Income Live Record for userId: ${userId} to get UID...`);
+    console.log(`Step 1: ✨ Fetching Income Live Record for userId: ${userId} to get UID...`);
 
     try {
         const incomeData = await client.getIncomeLiveRecord(userId);

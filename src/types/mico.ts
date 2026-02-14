@@ -132,6 +132,52 @@ export interface MicoH5RecordInfoResponse {
 
 export interface MicoH5RecordListResponse {
     code: number;
-    data: any[];
+    data: {
+        countryCode: string;
+        startMs: number;
+        endMs: number;
+        start: string;
+        end: string;
+        duration: number;
+        type: number; // 0 or 1 based on sample
+        diamonds: number;
+    }[];
+    msg: string | null;
+}
+
+export interface MicoStreamerStatsResult {
+    uid: number | string;
+    userId: number;
+    name: string;
+    dateStr: string;
+    country: string;
+    region: string;
+    unionId: number;
+    unionName: string;
+    liveMin: number;
+    liveDay: number;
+    gameMin: number;
+    gameDay: number;
+    audioMin: number;
+    audioDay: number;
+    liveWage: number;
+    audioWage: number;
+    wage: number;
+    inUnion: boolean;
+    salaryModel: number;
+    oneOnOneType: number;
+    oneOnOneWage: number;
+    [key: string]: any;
+}
+
+export interface MicoStreamerStatsResponse {
+    code: number;
+    data: {
+        count: number;
+        page: number;
+        page_size: number;
+        results: MicoStreamerStatsResult[];
+        sum_wage: number;
+    };
     msg: string | null;
 }

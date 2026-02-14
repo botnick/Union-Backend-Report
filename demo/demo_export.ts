@@ -1,5 +1,5 @@
 
-import { MicoClient, MailTm, ExcelProcessor } from './src/index.js';
+import { MicoClient, MailTm, ExcelProcessor } from '../src/index.ts';
 import path from 'path';
 
 async function main() {
@@ -24,15 +24,19 @@ async function main() {
     console.log(`   Logged in as: ${user.username}`);
 
     // 3. Trigger Export
-    const targetMonth = '2/2026';
-    const formattedDate = targetMonth.replace(/[\/-]/g, '_'); // Replace / or - with _
-    console.log(`3. Triggering Export for ${targetMonth} to ${mailAccount.address}...`);
+    const now = new Date();
+    // Default to last month if current day is early, otherwise current month? 
+    // Let's just use current month for demo simplicity or allow override
+    const targetMonth = `${now.getMonth() + 1}/${now.getFullYear()}`;
+    const formattedDate = targetMonth.replace(/[\/-]/g, '_');
+
+    console.log(`3. 🌸 Triggering Export for ${targetMonth} to ${mailAccount.address}...`);
 
     try {
         await micoClient.exportStreamerStatistics(targetMonth, targetMonth, mailAccount.address);
-        console.log('   Export requested successfully.');
+        console.log('   ✨ Export requested successfully! Waiting for cute email...');
     } catch (e: any) {
-        console.error('   Export request failed:', e.message);
+        console.error('   ❌ Export request failed:', e.message);
         return;
     }
 

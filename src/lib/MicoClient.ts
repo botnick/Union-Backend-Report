@@ -11,7 +11,8 @@ import type {
     MicoIncomeLiveRecordResponse,
     MicoExportResponse,
     MicoH5RecordInfoResponse,
-    MicoH5RecordListResponse
+    MicoH5RecordListResponse,
+    MicoStreamerStatsResponse
 } from '../types/mico.js';
 
 dotenv.config();
@@ -220,6 +221,44 @@ export class MicoClient {
         const url = `/data/union_statistics_monthly/?page=${page}&start_time=${startTime}&page_size=${pageSize}&end_time=${endTime}&_t=${timestamp}`;
 
         const res = await this.api.get<MicoUnionStatisticsResponse>(url);
+
+        if (res.data.code !== 200) {
+            throw new Error(`API Error: ${res.data.msg}`);
+        }
+
+        return res.data.data;
+    }
+
+    /**
+     * Retrieves detailed streamer statistics (income, etc.) for a specific period.
+     * @param startTime Format M/YYYY (e.g., "2/2026")
+     * @param endTime Format M/YYYY (e.g., "2/2026")
+     * @param page Page number (default 1)
+     * @param pageSize Page size (default 10)
+     */
+    public async getIncomeStatMonth(
+        startTime: string,
+        endTime: string,
+        page: number = 1,
+        pageSize: number = 10
+    ): Promise<MicoStreamerStatsResponse['data']> {
+        // API requires M/YYYY format (e.g., 2/2026)
+        // Convert YYYY-MM to M/YYYY if necessary
+        const formatParam = (dateStr: string) => {
+            if (/^\d{4}-\d{2}$/.test(dateStr)) {
+                const [year, month] = dateStr.split('-');
+                return `${parseInt(month, 10)}/${year}`;
+            }
+            return dateStr;
+        };
+
+        const start = formatParam(startTime);
+        const end = formatParam(endTime);
+
+        const timestamp = Date.now();
+        const url = `/data/income_stat_month_new/?page=${page}&start_time=${encodeURIComponent(start)}&page_size=${pageSize}&end_time=${encodeURIComponent(end)}&_t=${timestamp}`;
+
+        const res = await this.api.get<MicoStreamerStatsResponse>(url);
 
         if (res.data.code !== 200) {
             throw new Error(`API Error: ${res.data.msg}`);

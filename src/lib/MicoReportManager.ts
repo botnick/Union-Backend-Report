@@ -14,8 +14,8 @@ export class MicoReportManager {
     private mail: MailTm;
     private excel: ExcelProcessor;
 
-    constructor() {
-        this.mico = new MicoClient();
+    constructor(mico?: MicoClient) {
+        this.mico = mico || new MicoClient();
         this.mail = new MailTm();
         this.excel = new ExcelProcessor();
     }
@@ -28,7 +28,7 @@ export class MicoReportManager {
     }
 
     /**
-     * Generates a "Flower Union" themed report for the specified month.
+     * Generates a themed report for the specified month.
      * 1. Creates a temporary email.
      * 2. Requests export from MicoWorld.
      * 3. Waits for email & downloads file.
@@ -93,9 +93,13 @@ export class MicoReportManager {
 
         this.mail.stopPolling();
 
-        // 4. Beautify
-        // console.log(`[Report] Beautifying ${savedPath}...`);
-        await this.excel.beautify(savedPath);
+        // 4. Beautify, Enrich & Calculate Salary
+        // console.log(`[Report] Processing ${savedPath}...`);
+
+        // Parse monthStr (e.g., "1/2026")
+        const [month, year] = monthStr.split('/').map(n => parseInt(n, 10));
+
+        await this.excel.beautify(savedPath, undefined, this.mico, year, month);
 
         return savedPath;
     }

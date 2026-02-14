@@ -1,8 +1,8 @@
 
-import { MicoReportManager } from './src/index.js';
+import { MicoReportManager } from '../src/index.ts';
 
 async function main() {
-    console.log('--- Mico Report Manager Demo ---');
+    console.log('--- 🎀 Mico Report Manager Demo 🎀 ---');
     const manager = new MicoReportManager();
 
     try {

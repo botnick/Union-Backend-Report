@@ -19,7 +19,7 @@ npm install axios
 
 *(Note: This library relies on `axios`)*
 
-## Quick Start (Easy Mode)
+## Basic Usage
 
 The quickest way to get a working temporary email and listen for incoming messages.
 

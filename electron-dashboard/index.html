@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mico Dashboard - Premium Control</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/ace.js" type="text/javascript"
+        charset="utf-8"></script>
+    <link rel="stylesheet" href="styles.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#18020e',
+                        secondary: '#3d081f',
+                        accent: '#F472B6',
+                        'accent-hover': '#EC4899',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-primary text-slate-100 h-screen overflow-hidden font-sans select-none animate-fade-in text-[14px]">
+    <!-- Background Glows -->
+    <div
+        class="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-pink-600/20 blur-[120px] rounded-full z-0 p-32 bg-animate">
+    </div>
+    <div class="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-rose-600/20 blur-[120px] rounded-full z-0 bg-animate"
+        style="animation-delay: -5s"></div>
+
+    <div class="flex h-screen w-full relative z-10 p-3 gap-3">
+        <!-- Sidebar -->
+        <aside class="w-72 glass rounded-[32px] flex flex-col p-6 gap-6 shadow-2xl relative overflow-hidden">
+            <div
+                class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-accent/30 to-transparent">
+            </div>
+
+            <div class="flex flex-col items-center gap-2 mb-1">
+                <div
+                    class="w-12 h-12 rounded-[20px] bg-gradient-to-br from-accent to-pink-700 flex items-center justify-center text-2xl shadow-lg ring-1 ring-white/20 transition-transform hover:scale-105 duration-500">
+                    🎀
+                </div>
+                <div class="text-center group cursor-default">
+                    <h1
+                        class="text-base font-black tracking-tighter bg-gradient-to-b from-white to-slate-400 bg-clip-text text-transparent group-hover:to-accent transition-all duration-700">
+                        MICO DASHBOARD
+                    </h1>
+                </div>
+            </div>
+
+            <nav class="flex flex-col gap-1.5 flex-1 min-h-0 overflow-y-auto pr-1">
+                <div class="flex flex-col gap-1.5 mt-2">
+                    <button
+                        class="nav-btn flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white transition-all group active"
+                        data-tab="status">
+                        <span class="text-lg group-hover:scale-110 transition-transform">📊</span>
+                        <span class="font-bold text-xs uppercase tracking-wider">Dashboard</span>
+                    </button>
+                    <button
+                        class="nav-btn flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white transition-all group"
+                        data-tab="env">
+                        <span class="p-1.5 rounded-lg bg-slate-800/40 group-hover:bg-accent/20 transition-all">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                            </svg>
+                        </span>
+                        <span class="font-bold tracking-tight text-xs">Environment</span>
+                    </button>
+                    <button
+                        class="nav-btn flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white transition-all group"
+                        data-tab="token">
+                        <span class="p-1.5 rounded-lg bg-pink-900/40 group-hover:bg-purple-500/20 transition-all">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                            </svg>
+                        </span>
+                        <span class="font-bold tracking-tight text-xs">Auth Secrets</span>
+                    </button>
+                    <button
+                        class="nav-btn flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white transition-all group"
+                        data-tab="settings">
+                        <span class="p-1.5 rounded-lg bg-slate-800/40 group-hover:bg-orange-500/20 transition-all">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </span>
+                        <span class="font-bold tracking-tight text-xs">Settings</span>
+                    </button>
+                </div>
+
+                <!-- Project Selection (High-End Glass) -->
+                <div
+                    class="flex flex-col gap-3 p-4 bg-white/[0.03] rounded-[24px] border border-white/5 backdrop-blur-md transition-all hover:bg-white/[0.05] group">
+                    <div class="flex items-center justify-between px-1">
+                        <span
+                            class="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] group-hover:text-slate-400 transition-colors">Workspace</span>
+                        <div id="status-dot"
+                            class="h-1.5 w-1.5 rounded-full bg-pink-500 shadow-[0_0_8px_#ec4899] animate-pulse"></div>
+                    </div>
+                    <div id="project-path-display"
+                        class="text-[10px] text-slate-300 font-mono break-all line-clamp-1 opacity-60 px-1 truncate">
+                        Locating folder...
+                    </div>
+                    <button id="select-folder-btn"
+                        class="w-full bg-white/5 hover:bg-white/10 text-white text-[10px] font-black py-2 rounded-xl transition-all border border-white/10 uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                        </svg>
+                        Select
+                    </button>
+                </div>
+
+                <!-- Cockpit Controls (Aesthetics 2.0) -->
+                <div class="controls-panel flex flex-col gap-4">
+                    <button id="start-btn" class="w-full relative overflow-hidden group">
+                        <span id="start-btn-text"
+                            class="relative z-10 text-[11px] font-black tracking-[0.3em] uppercase pointer-events-none">Start
+                            Engine</span>
+                    </button>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="stop-btn" class="btn-secondary flex items-center justify-center gap-2 group"
+                            disabled>
+                            <svg class="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                    d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span class="font-black uppercase tracking-widest">Halt</span>
+                        </button>
+                        <button id="force-btn" class="btn-secondary flex items-center justify-center gap-2 group"
+                            disabled>
+                            <svg class="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span class="font-black uppercase tracking-widest">Kill</span>
+                        </button>
+                    </div>
+                </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 glass rounded-[32px] flex flex-col overflow-hidden relative">
+            <!-- Header bar -->
+            <header
+                class="h-24 border-b border-white/5 flex items-center justify-between px-12 bg-white/[0.03] backdrop-blur-2xl">
+                <div class="flex items-center gap-10">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-slate-500 text-[10px] font-black uppercase tracking-[0.25em]">Session
+                            Uptime</span>
+                        <span id="uptime-display"
+                            class="text-lg font-black font-mono text-accent drop-shadow-[0_0_10px_hsla(199,89%,48%,0.3)]">00:00:00</span>
+                    </div>
+                    <div class="h-10 w-px bg-white/10"></div>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-slate-500 text-[10px] font-black uppercase tracking-[0.25em]">Engine
+                            Status</span>
+                        <div id="status-badge"
+                            class="text-sm font-black text-red-500 flex items-center gap-2.5 uppercase tracking-tighter">
+                            <span class="h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444]"></span>
+                            SYSTEM OFFLINE
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-6">
+                    <div class="flex flex-col items-end opacity-60">
+                        <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">Client Build</span>
+                        <span class="text-[11px] font-bold text-slate-300">v1.2.4-GOLDEN</span>
+                    </div>
+                    <div
+                        class="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent animate-pulse">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Tabs Container -->
+            <div class="flex-1 p-10 overflow-hidden relative">
+                <!-- Welcome / Empty State (Shown if no rootDir) -->
+                <div id="welcome-screen"
+                    class="absolute inset-0 flex items-center justify-center z-50 bg-primary/20 backdrop-blur-md hidden animate-fade-in">
+                    <div class="glass-card p-12 text-center flex flex-col items-center gap-8 max-w-md">
+                        <div class="text-6xl animate-bounce">📂</div>
+                        <div>
+                            <h2 class="text-2xl font-black mb-3">Ready to Start?</h2>
+                            <p class="text-slate-400 text-sm leading-relaxed">Please select your project folder
+                                containing <span class="text-accent font-mono">lark_server.ts</span> and <span
+                                    class="text-accent font-mono">.env</span> to begin.</p>
+                        </div>
+                        <button id="welcome-select-btn"
+                            class="bg-accent text-primary font-black px-12 py-4 rounded-2xl hover:brightness-110 transition-all shadow-[0_15px_35px_rgba(56,189,248,0.4)] active:scale-95">
+                            SELECT PROJECT FOLDER
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Dashboard Tab -->
+                <section id="tab-status"
+                    class="tab-content absolute inset-0 p-8 flex flex-col gap-8 transition-all duration-500">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="glass-card p-6 flex flex-col justify-between group h-40">
+                            <div class="flex items-center justify-between">
+                                <span class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">CPU
+                                    LOAD</span>
+                                <span class="text-accent/50 text-xs">⚡</span>
+                            </div>
+                            <div class="flex items-baseline gap-2 mt-2">
+                                <span id="cpu-value"
+                                    class="text-4xl font-black font-mono tracking-tighter text-white">0</span>
+                                <span class="text-slate-500 text-sm font-bold">%</span>
+                            </div>
+                            <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden mt-auto">
+                                <div id="cpu-bar"
+                                    class="bg-gradient-to-r from-accent to-rose-500 h-full rounded-full transition-all duration-700 shadow-[0_0_15px_hsla(330,89%,48%,0.4)]"
+                                    style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="glass-card p-6 flex flex-col justify-between group h-40">
+                            <div class="flex items-center justify-between">
+                                <span
+                                    class="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">MEMORY</span>
+                                <span class="text-purple-500/50 text-xs">🧠</span>
+                            </div>
+                            <div class="flex items-baseline gap-2 mt-2">
+                                <span id="ram-value"
+                                    class="text-4xl font-black font-mono tracking-tighter text-white">0</span>
+                                <span class="text-slate-500 text-sm font-bold">%</span>
+                            </div>
+                            <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden mt-auto">
+                                <div id="ram-bar"
+                                    class="bg-gradient-to-r from-fuchsia-400 to-pink-400 h-full rounded-full transition-all duration-700 shadow-[0_0_15px_rgba(232,121,249,0.4)]"
+                                    style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="glass-card p-6 flex flex-col justify-center gap-4 h-40">
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center text-2xl shadow-inner border border-green-500/20">
+                                    🛡️
+                                </div>
+                                <div>
+                                    <div class="text-lg font-black text-white tracking-tight">ENGINE STABLE</div>
+                                    <div class="text-[9px] text-green-500/80 font-bold uppercase tracking-[0.2em] mt-1">
+                                        Protocols Active</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Console -->
+                    <div class="flex-1 flex flex-col gap-4 min-h-0">
+                        <div class="flex items-center justify-between px-2">
+                            <div class="flex items-center gap-3">
+                                <div class="h-1.5 w-6 bg-accent rounded-full"></div>
+                                <h3 class="text-xs font-black uppercase tracking-[0.3em] text-slate-500">Live Engine
+                                    Console</h3>
+                            </div>
+                            <button id="clear-logs"
+                                class="text-slate-500 hover:text-white text-[9px] font-black tracking-widest transition-colors uppercase">Clear
+                                Buffer</button>
+                        </div>
+                        <div id="log-output"
+                            class="flex-1 glass-card bg-black/40 p-8 font-mono text-[13px] leading-relaxed overflow-y-auto shadow-inner border-white/[0.03]">
+                            <div
+                                class="text-accent/40 text-[10px] font-black mb-6 border-b border-white/5 pb-2 uppercase tracking-[0.2em]">
+                                Initial System Handshake Complete</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Config Tab -->
+                <section id="tab-env"
+                    class="tab-content absolute inset-0 p-8 flex flex-col gap-6 opacity-0 scale-95 pointer-events-none transition-all duration-500">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-2xl font-black tracking-tighter">ENVIRONMENT</h2>
+                            <p class="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-60">
+                                System variables & environment flags</p>
+                        </div>
+                        <button id="save-env-btn"
+                            class="bg-white/5 hover:bg-white/10 text-white font-black px-8 py-3 rounded-xl transition-all border border-white/10 active:scale-95 text-xs">SAVE
+                            CONFIG</button>
+                    </div>
+                    <div class="flex-1 glass-card overflow-hidden !rounded-xl">
+                        <div id="env-editor" class="w-full h-full p-2"></div>
+                    </div>
+                </section>
+
+                <!-- Token Tab -->
+                <section id="tab-token"
+                    class="tab-content absolute inset-0 p-8 flex flex-col gap-6 opacity-0 scale-95 pointer-events-none transition-all duration-500">
+                    <div class="flex items-center justify-between text-slate-100">
+                        <div>
+                            <h2 class="text-2xl font-black tracking-tighter">ACCESS TOKEN</h2>
+                            <p class="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1 opacity-60">
+                                Mico API Authorization data</p>
+                        </div>
+                        <button id="save-token-btn"
+                            class="bg-white/5 hover:bg-white/10 text-white font-black px-8 py-3 rounded-xl transition-all border border-white/10 active:scale-95 text-[10px]">SECURE
+                            TOKEN</button>
+                    </div>
+                    <div class="flex-1 glass-card overflow-hidden !rounded-xl border border-white/5 shadow-inner">
+                        <div id="token-editor" class="w-full h-full p-2"></div>
+                    </div>
+                </section>
+
+                <!-- Settings Tab -->
+                <section id="tab-settings"
+                    class="tab-content absolute inset-0 flex items-center justify-center opacity-0 scale-95 pointer-events-none transition-all duration-500 p-8">
+                    <div
+                        class="glass p-10 rounded-[32px] flex flex-col gap-8 shadow-2xl max-w-2xl w-full border border-white/10 relative overflow-hidden">
+                        <div
+                            class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-accent/0 via-accent/40 to-accent/0">
+                        </div>
+                        <div class="text-center">
+                            <h2 class="text-3xl font-black tracking-tighter mb-1">APP SETTINGS</h2>
+                            <p class="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">Engine
+                                behavior and startup</p>
+                        </div>
+
+                        <div class="flex flex-col gap-4">
+                            <!-- Auto Restart -->
+                            <div
+                                class="glass-card p-6 flex items-center justify-between group hover:bg-white/[0.03] !rounded-2xl">
+                                <div class="flex items-center gap-5">
+                                    <div
+                                        class="w-12 h-12 rounded-xl bg-pink-500/10 flex items-center justify-center text-2xl transition-transform group-hover:scale-110">
+                                        🔄</div>
+                                    <div>
+                                        <h3 class="text-base font-black tracking-tight">Auto-Restart Engine</h3>
+                                        <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+                                            Recovery automation</p>
+                                    </div>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="toggle-restart" class="sr-only peer">
+                                    <div
+                                        class="w-14 h-7 bg-slate-800/50 rounded-full peer peer-checked:bg-accent ring-1 ring-white/10 transition-all toggle-bg after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-slate-400 after:rounded-full after:h-[20px] after:w-[20px] after:transition-all peer-checked:after:translate-x-full peer-checked:after:bg-white peer-checked:after:shadow-[0_0_10px_white]">
+                                    </div>
+                                </label>
+                            </div>
+
+                            <!-- Auto Startup -->
+                            <div
+                                class="glass-card p-6 flex items-center justify-between group hover:bg-white/[0.03] !rounded-2xl">
+                                <div class="flex items-center gap-5">
+                                    <div
+                                        class="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center text-2xl transition-transform group-hover:scale-110">
+                                        🚀</div>
+                                    <div>
+                                        <h3 class="text-base font-black tracking-tight">Windows Auto-Startup</h3>
+                                        <p class="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+                                            Boot sequence</p>
+                                    </div>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="toggle-startup" class="sr-only peer">
+                                    <div
+                                        class="w-14 h-7 bg-slate-800/50 rounded-full peer peer-checked:bg-purple-600 ring-1 ring-white/10 transition-all toggle-bg after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-slate-400 after:rounded-full after:h-[20px] after:w-[20px] after:transition-all peer-checked:after:translate-x-full peer-checked:after:bg-white peer-checked:after:shadow-[0_0_10px_white]">
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="bg-accent/5 p-4 rounded-xl border border-accent/10 flex items-center gap-4">
+                            <span class="text-accent text-lg">ℹ️</span>
+                            <p class="text-[10px] font-bold text-slate-400 leading-relaxed uppercase tracking-wider">
+                                Settings are applied instantly and persisted to <span
+                                    class="text-accent font-mono">config.json</span></p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notification (Soft Glass) -->
+    <div id="notification"
+        class="fixed top-12 left-1/2 -translate-x-1/2 px-10 py-5 glass rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-center gap-4 transform -translate-y-32 opacity-0 transition-all duration-500 z-[1001] border-white/20">
+        <div class="h-8 w-8 bg-accent/20 rounded-full flex items-center justify-center text-lg" id="notif-icon-box">
+            <span id="notif-icon">✅</span>
+        </div>
+        <span id="notif-msg" class="font-black text-slate-100 text-xs uppercase tracking-widest tracking-tighter">Action
+            Complete</span>
+    </div>
+
+    <!-- Close Choice Modal (Ultra-Premium Glass) -->
+    <div id="close-modal" class="modal-overlay hidden">
+        <div class="modal-content glass p-10 flex flex-col gap-8 animate-slide-up relative overflow-hidden">
+            <div
+                class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500/30 to-transparent">
+            </div>
+            <div class="text-center flex flex-col gap-4">
+                <div class="text-6xl mb-2 animate-pulse">🛑</div>
+                <h2
+                    class="text-2xl font-black tracking-tighter bg-gradient-to-br from-white to-slate-400 bg-clip-text text-transparent">
+                    Exit Project?</h2>
+                <p class="text-slate-400 text-xs font-bold leading-relaxed uppercase tracking-wider opacity-60">Would
+                    you like to keep the automation active in the tray or terminate everything?</p>
+            </div>
+            <div class="flex flex-col gap-3">
+                <button id="btn-minimize-tray"
+                    class="w-full bg-white/5 hover:bg-white/10 text-white font-black py-4 rounded-2xl transition-all border border-white/10 active:scale-95 uppercase text-[10px] tracking-widest group overflow-hidden relative">
+                    <span class="relative z-10">Minimize to Tray</span>
+                    <div class="absolute inset-0 bg-accent/10 opacity-0 group-hover:opacity-100 transition-opacity">
+                    </div>
+                </button>
+                <button id="btn-quit-app"
+                    class="w-full bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white font-black py-4 rounded-2xl transition-all border border-red-500/20 active:scale-95 uppercase text-[10px] tracking-widest group overflow-hidden relative">
+                    <span class="relative z-10">Exit Project (Hard Stop)</span>
+                </button>
+                <button id="btn-cancel-close"
+                    class="w-full text-slate-500 hover:text-white font-bold py-2 transition-all text-[10px] uppercase tracking-widest mt-2">
+                    Back to Control
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+
+</html>

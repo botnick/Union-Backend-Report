@@ -3,7 +3,7 @@
 The `ExcelProcessor` library provides utilities to format and beautify Excel reports exported from MicoWorld.
 
 ## Features
-- **Header Styling**: Applies a professional dark blue background with white bold text to simple headers.
+- **Header Styling**: Applies a professional standard theme with high-contrast text to headers.
 - **Auto-Width**: Automatically adjusts column widths to fit the content (with a max width cap).
 - **Borders**: Adds thin borders to all cells for better readability.
 

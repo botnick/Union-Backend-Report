@@ -1,12 +1,11 @@
 
-import { MailTm } from './src/index.js';
-import type { Message } from './src/index.js';
+import { MailTm, Message } from '../src/index.ts';
 
 async function runDemo() {
     const client = new MailTm();
 
-    console.log('--- Mail.tm Library Demo (Optimized) ---');
-    console.log('1. Creating a random account automatically...');
+    console.log('--- 🌸 Mail.tm Library Demo (Optimized) 🌸 ---');
+    console.log('1. ✨ Creating a random account automatically...');
 
     // "Easy mode": Create random account in one line
     const { account } = await client.createRandomAccount();
