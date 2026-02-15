@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import axios from 'axios';
 import os from 'os';
 
-type UserState = 'IDLE' | 'WAITING_UNION_DATE' | 'WAITING_VJ_DATE' | 'WAITING_EXPORT_DATE' | 'WAITING_USER_ID' | 'WAITING_USER_DETAIL_MONTH';
+type UserState = 'IDLE' | 'WAITING_UNION_DATE' | 'WAITING_VJ_DATE' | 'WAITING_EXPORT_DATE' | 'WAITING_USER_ID' | 'WAITING_USER_DETAIL_MONTH' | 'PROCESSING_EXPORT';
 
 interface UserSession {
     state: UserState;
@@ -65,6 +65,20 @@ export class ReportController {
         const session = this.getSession(userId);
         const cleanText = text.trim();
 
+        // BLOCKING LOGIC: If processing export, ignore everything EXCEPT /cancel
+        if (session.state === 'PROCESSING_EXPORT') {
+            if (cleanText.toLowerCase() === '/cancel' || cleanText.toLowerCase() === 'cancel') {
+                // Allow cancel to proceed
+                await this.handleCommand(chatId, userId, cleanText);
+                return;
+            } else {
+                // Ignore all other inputs silently or warn user?
+                // User requested: "ไม่สนใจ จนกว่าจะ sendFile success" -> Ignore silently
+                console.log(`[BLOCK] Ignored message from ${userId} during export: ${cleanText}`);
+                return;
+            }
+        }
+
         // 1. Check for Commands (Global Interrupts)
         if (cleanText.startsWith('/')) {
             await this.handleCommand(chatId, userId, cleanText);
@@ -110,6 +124,16 @@ export class ReportController {
             const actionKey = (typeof valData === 'object' && valData !== null) ? valData.action : valData;
             const tag = action.tag;
             const session = this.getSession(userId);
+
+            // BLOCKING LOGIC: If processing export, ignore everything EXCEPT cancel action
+            if (session.state === 'PROCESSING_EXPORT') {
+                if (actionKey === 'cancel') {
+                    // Allow cancel to proceed
+                } else {
+                    console.log(`[BLOCK] Ignored action from ${userId} during export: ${actionKey}`);
+                    return;
+                }
+            }
 
             console.log(`[Action] User(${userId}) Tag(${tag}) ParsedActionKey:`, actionKey);
 
@@ -571,7 +595,16 @@ export class ReportController {
             await this.bot.sendText(chatId, `🚀 ${botName} กำลังเตรียมความพร้อมเพื่อดึงรายงานเดือน ${date.display} ให้อยู่น้า...\n\n💌 1. สร้างอีเมลชั่วคราวและส่งคำขอดึงข้อมูลสถิติจาก Mico แล้วจ้า!`);
 
             // Use the full pipeline manager
+            this.updateState(userId, 'PROCESSING_EXPORT');
+
             const savedPath = await this.manager.generateMonthlyReport(date.display);
+
+            // CHECK CANCELLATION: If state is no longer PROCESSING_EXPORT, stop here.
+            const currentSession = this.getSession(userId); // Re-fetch session
+            if (currentSession.state !== 'PROCESSING_EXPORT') {
+                console.log(`[CANCELLED] Export for ${userId} was cancelled during generation.`);
+                return;
+            }
 
             await this.bot.sendText(chatId, `✅ 2. ${botName} ได้รับอีเมลและดาวน์โหลดไฟล์สำเร็จเรียบร้อย!\n📊 3. กำลังนำข้อมูลมาสรุปและคำนวณรายได้ให้วีเจทุกคนอย่างตั้งใจ... ฮึบๆ! 💖`);
 
@@ -590,11 +623,23 @@ export class ReportController {
             const fileKey = await this.bot.uploadFile(savedPath, 'xls');
             await this.bot.sendFile(chatId, fileKey);
 
+            // Only reset if we are still in the processing state (just to be safe)
+            if (this.getSession(userId).state === 'PROCESSING_EXPORT') {
+                this.resetState(userId);
+            }
+
             this.resetState(userId);
 
         } catch (error: any) {
             console.error(' Error in processExport:', error);
             await this.bot.sendText(chatId, `${this.getRandomMessage('error')}${error.message}`);
+        } finally {
+            // Ensure we always clean up the state if it's still stuck in processing
+            // If user cancelled, it's already IDLE. If success, we reset it above.
+            // But if error occurred, we MUST reset here.
+            if (this.getSession(userId).state === 'PROCESSING_EXPORT') {
+                this.resetState(userId);
+            }
         }
     }
 
