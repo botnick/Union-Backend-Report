@@ -173,23 +173,124 @@ window.electronAPI.onMetrics((metrics) => {
     uptimeDisplay.textContent = `${hours}:${mins}:${secs}`;
 });
 
+// Auto-scroll state
+let autoScrollEnabled = true;
+const autoscrollBtn = document.getElementById('autoscroll-btn');
+
+// Detect user manual scroll => pause auto-scroll
+logOutput.addEventListener('scroll', () => {
+    const isAtBottom = logOutput.scrollHeight - logOutput.scrollTop <= logOutput.clientHeight + 60;
+    if (!isAtBottom && autoScrollEnabled) {
+        autoScrollEnabled = false;
+        autoscrollBtn.classList.remove('active');
+        autoscrollBtn.classList.add('paused');
+    }
+});
+
+autoscrollBtn.addEventListener('click', () => {
+    autoScrollEnabled = !autoScrollEnabled;
+    if (autoScrollEnabled) {
+        autoscrollBtn.classList.add('active');
+        autoscrollBtn.classList.remove('paused');
+        logOutput.scrollTop = logOutput.scrollHeight;
+    } else {
+        autoscrollBtn.classList.remove('active');
+        autoscrollBtn.classList.add('paused');
+    }
+});
+
+// JSON syntax highlighting
+function syntaxHighlightJSON(json) {
+    if (typeof json !== 'string') json = JSON.stringify(json, null, 2);
+    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return json.replace(
+        /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+        (match) => {
+            let cls = 'log-json-number';
+            if (/^"/.test(match)) {
+                if (/:$/.test(match)) {
+                    cls = 'log-json-key';
+                } else {
+                    cls = 'log-json-string';
+                }
+            } else if (/true|false/.test(match)) {
+                cls = 'log-json-bool';
+            } else if (/null/.test(match)) {
+                cls = 'log-json-null';
+            }
+            return `<span class="${cls}">${match}</span>`;
+        }
+    );
+}
+
+// Try to detect and parse JSON from a log message
+function tryParseJSON(str) {
+    // Find JSON-like content in the string
+    const jsonStartIdx = str.search(/[\[{]/);
+    if (jsonStartIdx === -1) return null;
+
+    const candidate = str.substring(jsonStartIdx).trim();
+    try {
+        const parsed = JSON.parse(candidate);
+        if (typeof parsed === 'object' && parsed !== null) {
+            return {
+                prefix: str.substring(0, jsonStartIdx).trim(),
+                json: parsed
+            };
+        }
+    } catch (e) {
+        // Not valid JSON
+    }
+    return null;
+}
+
 function addLog(source, message, customClass = '') {
     const div = document.createElement('div');
-    div.className = `flex gap-3 mb-1.5 font-mono text-sm leading-relaxed ${customClass} animate-slide-up`;
+    div.className = `log-entry flex gap-3 mb-1.5 font-mono text-sm leading-relaxed ${customClass}`;
     
     const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
     
-    // Techy source styling
+    // Source badge styling
     let sourceStyle = 'text-slate-500';
     if (source === 'SYSTEM') sourceStyle = 'text-accent font-bold';
     if (source === 'CRITICAL') sourceStyle = 'text-red-500 font-black';
     if (source === 'MICO') sourceStyle = 'text-purple-400 font-bold';
 
-    div.innerHTML = `
-        <span class="text-slate-700 shrink-0 font-bold">[${time}]</span>
-        <span class="${sourceStyle} shrink-0 w-16 text-right">${source}</span>
-        <span class="text-slate-300 break-all select-text">${message.replace(/\x1b\[[0-9;]*m/g, '')}</span>
-    `;
+    // Strip ANSI escape codes
+    const cleanMessage = message.replace(/\x1b\[[0-9;]*m/g, '');
+
+    // Try to detect JSON in the message
+    const jsonResult = tryParseJSON(cleanMessage);
+    
+    if (jsonResult) {
+        const prettyJSON = JSON.stringify(jsonResult.json, null, 2);
+        const highlighted = syntaxHighlightJSON(prettyJSON);
+        const preview = JSON.stringify(jsonResult.json).substring(0, 60) + (JSON.stringify(jsonResult.json).length > 60 ? '...' : '');
+        
+        div.innerHTML = `
+            <span class="text-slate-700 shrink-0 font-bold">[${time}]</span>
+            <span class="${sourceStyle} shrink-0 w-16 text-right">${source}</span>
+            <div class="flex-1 min-w-0">
+                ${jsonResult.prefix ? `<span class="text-slate-300">${jsonResult.prefix}</span>` : ''}
+                <div class="log-json-block select-text" title="Click to expand/collapse">
+                    <div class="text-slate-500 text-[9px] uppercase tracking-wider mb-1 font-bold">⚡ JSON • Click to toggle</div>
+                    <pre class="whitespace-pre-wrap break-all m-0">${highlighted}</pre>
+                </div>
+            </div>
+        `;
+        
+        // Click to collapse/expand
+        const jsonBlock = div.querySelector('.log-json-block');
+        jsonBlock.addEventListener('click', () => {
+            jsonBlock.classList.toggle('collapsed');
+        });
+    } else {
+        div.innerHTML = `
+            <span class="text-slate-700 shrink-0 font-bold">[${time}]</span>
+            <span class="${sourceStyle} shrink-0 w-16 text-right">${source}</span>
+            <span class="text-slate-300 break-all select-text">${cleanMessage}</span>
+        `;
+    }
     
     logOutput.appendChild(div);
     
@@ -198,14 +299,17 @@ function addLog(source, message, customClass = '') {
         logOutput.removeChild(logOutput.firstChild);
     }
 
-    // Auto-scroll logic
-    if (logOutput.scrollHeight - logOutput.scrollTop < logOutput.clientHeight + 100) {
+    // Auto-scroll only if enabled
+    if (autoScrollEnabled) {
         logOutput.scrollTop = logOutput.scrollHeight;
     }
 }
 
 document.getElementById('clear-logs').addEventListener('click', () => {
     logOutput.innerHTML = '<div class="text-accent/40 text-[10px] font-black mb-6 border-b border-white/5 pb-2 uppercase tracking-[0.2em]">Log Buffer Cleared</div>';
+    autoScrollEnabled = true;
+    autoscrollBtn.classList.add('active');
+    autoscrollBtn.classList.remove('paused');
 });
 
 // Open Logs Folder

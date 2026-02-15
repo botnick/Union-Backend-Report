@@ -38,16 +38,19 @@ export class MicoReportManager {
      * @param outputDir Directory to save the report (default: "./exports")
      * @returns Path to the generated report
      */
-    public async generateMonthlyReport(monthStr: string, outputDir: string = './exports'): Promise<string> {
+    public async generateMonthlyReport(monthStr: string, outputDir: string = './exports', onProgress?: (msg: string) => void): Promise<string> {
         // 1. Setup Mail
+        if (onProgress) onProgress('📧 creating temp email...');
         const { account } = await this.mail.createRandomAccount();
         // console.log(`[Report] Temp Email: ${account.address}`);
 
         // 2. Request Export
+        if (onProgress) onProgress('📤 Requesting export from Mico...');
         await this.mico.exportStreamerStatistics(monthStr, monthStr, account.address);
         // console.log(`[Report] Export requested for ${monthStr}`);
 
         // 3. Wait for & Download Email
+        if (onProgress) onProgress('⏳ Waiting for email with attachment...');
         if (!fs.existsSync(outputDir)) {
             fs.mkdirSync(outputDir, { recursive: true });
         }
@@ -66,6 +69,7 @@ export class MicoReportManager {
 
                         try {
                             // Manual download to control filename
+                            if (onProgress) onProgress('📥 Downloading attachment...');
                             const attachmentWithUrl = { ...attachment };
                             // MailTm class handles URL expansion but we can pass it directly 
                             savedPath = await this.mail.downloadAttachment(attachmentWithUrl, outputDir);
@@ -99,6 +103,7 @@ export class MicoReportManager {
         // Parse monthStr (e.g., "1/2026")
         const [month, year] = monthStr.split('/').map(n => parseInt(n, 10));
 
+        if (onProgress) onProgress('💅 Beautifying Excel & Calculating Salaries...');
         await this.excel.beautify(savedPath, undefined, this.mico, year, month);
 
         return savedPath;

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 import axios from 'axios';
 import os from 'os';
 
-type UserState = 'IDLE' | 'WAITING_UNION_DATE' | 'WAITING_VJ_DATE' | 'WAITING_EXPORT_DATE' | 'WAITING_USER_ID' | 'WAITING_USER_DETAIL_MONTH' | 'PROCESSING_EXPORT';
+type UserState = 'IDLE' | 'WAITING_UNION_DATE' | 'WAITING_VJ_DATE' | 'WAITING_EXPORT_DATE' | 'WAITING_USER_ID' | 'WAITING_USER_DETAIL_MONTH' | 'PROCESSING_EXPORT' | 'PROCESSING_UNION' | 'PROCESSING_VJ' | 'PROCESSING_INCOME';
 
 interface UserSession {
     state: UserState;
@@ -22,6 +22,8 @@ export class ReportController {
     private manager: MicoReportManager;
     private imageCache: Map<string, string> = new Map(); // Cache for image keys (avatar/family)
     private sessions: Map<string, UserSession> = new Map();
+    private cache: Map<string, { data: any, timestamp: number }> = new Map();
+    private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 Minutes
 
     constructor(bot: LarkBot) {
         this.bot = bot;
@@ -65,16 +67,15 @@ export class ReportController {
         const session = this.getSession(userId);
         const cleanText = text.trim();
 
-        // BLOCKING LOGIC: If processing export, ignore everything EXCEPT /cancel
-        if (session.state === 'PROCESSING_EXPORT') {
+        // BLOCKING LOGIC: If processing any long-running task
+        if (session.state.startsWith('PROCESSING_')) {
             if (cleanText.toLowerCase() === '/cancel' || cleanText.toLowerCase() === 'cancel') {
                 // Allow cancel to proceed
                 await this.handleCommand(chatId, userId, cleanText);
                 return;
             } else {
-                // Ignore all other inputs silently or warn user?
-                // User requested: "ไม่สนใจ จนกว่าจะ sendFile success" -> Ignore silently
-                console.log(`[BLOCK] Ignored message from ${userId} during export: ${cleanText}`);
+                // Ignore all other inputs silently
+                console.log(`[BLOCK] Ignored message from ${userId} during ${session.state}: ${cleanText}`);
                 return;
             }
         }
@@ -125,12 +126,12 @@ export class ReportController {
             const tag = action.tag;
             const session = this.getSession(userId);
 
-            // BLOCKING LOGIC: If processing export, ignore everything EXCEPT cancel action
-            if (session.state === 'PROCESSING_EXPORT') {
+            // BLOCKING LOGIC: If processing any long-running task
+            if (session.state.startsWith('PROCESSING_')) {
                 if (actionKey === 'cancel') {
                     // Allow cancel to proceed
                 } else {
-                    console.log(`[BLOCK] Ignored action from ${userId} during export: ${actionKey}`);
+                    console.log(`[BLOCK] Ignored action from ${userId} during ${session.state}: ${actionKey}`);
                     return;
                 }
             }
@@ -428,7 +429,18 @@ export class ReportController {
             return;
         }
 
+        const cacheKey = `UNION_${date.display}`;
+        const cached = this.cache.get(cacheKey);
+
+        // CACHE CHECK
+        if (cached && (Date.now() - cached.timestamp < this.CACHE_DURATION)) {
+            console.log(`[CACHE] Hit for ${cacheKey}`);
+            await this.sendUnionStatsCard(chatId, userId, date.display, cached.data, cached.timestamp);
+            return;
+        }
+
         try {
+            this.updateState(userId, 'PROCESSING_UNION');
             await this.bot.sendText(chatId, this.getRandomMessage('waiting'));
 
             const pageSize = 100;
@@ -440,29 +452,40 @@ export class ReportController {
                 wage: stats.sum_wage || 0
             };
 
-            const card: LarkCardContent = {
-                header: { template: 'wathet', title: { tag: 'plain_text', content: `🏢 รายได้สังกัด: ${date.display}` } },
-                elements: [
-                    {
-                        tag: 'div',
-                        fields: [
-                            { is_short: false, text: { tag: 'lark_md', content: `**ยอดรายได้รวม:**\n ${(summary.wage || 0).toLocaleString()} Diamonds ` } }
-                        ]
-                    },
-                    {
-                        tag: 'note',
-                        elements: [{ tag: 'plain_text', content: `ข้อมูลอัปเดตล่าสุดจากระบบ Mico โดย ${this.getRandomName()} เองจ้า ` }]
-                    }
-                ]
-            };
+            // SET CACHE
+            this.cache.set(cacheKey, { data: summary, timestamp: Date.now() });
 
-            await this.bot.sendCard(chatId, card);
-            this.resetState(userId);
+            await this.sendUnionStatsCard(chatId, userId, date.display, summary, Date.now());
 
         } catch (error: any) {
             console.error(' Error in processUnionStats:', error);
             await this.bot.sendText(chatId, `${this.getRandomMessage('error')}${error.message}`);
+        } finally {
+            this.resetState(userId);
         }
+    }
+
+    private async sendUnionStatsCard(chatId: string, userId: string, displayDate: string, summary: any, timestamp: number) {
+        const timeStr = new Date(timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+        const card: LarkCardContent = {
+            header: { template: 'wathet', title: { tag: 'plain_text', content: `🏢 รายได้สังกัด: ${displayDate}` } },
+            elements: [
+                {
+                    tag: 'div',
+                    fields: [
+                        { is_short: false, text: { tag: 'lark_md', content: `**ยอดรายได้รวม:**\n ${(summary.wage || 0).toLocaleString()} Diamonds ` } }
+                    ]
+                },
+                {
+                    tag: 'note',
+                    elements: [{ tag: 'plain_text', content: `🕒 ข้อมูลเมื่อ: ${timeStr} | โดย ${this.getRandomName()}` }]
+                }
+            ]
+        };
+
+        await this.bot.sendCard(chatId, card);
+        this.resetState(userId);
     }
 
     private async processVJStats(chatId: string, userId: string, input: string) {
@@ -472,7 +495,20 @@ export class ReportController {
             return;
         }
 
+        const cacheKey = `VJ_${date.display}`;
+        const cached = this.cache.get(cacheKey);
+
+        // CACHE CHECK
+        if (cached && (Date.now() - cached.timestamp < this.CACHE_DURATION)) {
+            console.log(`[CACHE] Hit for ${cacheKey}`);
+            const card = this.renderVJRankingCard(cached.data, date.display, cached.timestamp);
+            await this.bot.sendCard(chatId, card);
+            this.resetState(userId);
+            return;
+        }
+
         try {
+            this.updateState(userId, 'PROCESSING_VJ');
             await this.bot.sendText(chatId, this.getRandomMessage('waiting'));
 
             // Fetch first page to get count and determine total pages
@@ -513,12 +549,17 @@ export class ReportController {
                 return;
             }
 
+            // SET CACHE
+            this.cache.set(cacheKey, { data: allResults, timestamp: Date.now() });
+
             // Render single card with ALL results
-            const card = this.renderVJRankingCard(allResults, date.display);
+            const card = this.renderVJRankingCard(allResults, date.display, Date.now());
             await this.bot.sendCard(chatId, card);
         } catch (error: any) {
             console.error(' Error in processVJStats:', error);
             await this.bot.sendText(chatId, `😿 แง... ${this.getRandomName()} เจอปัญหาตอนดึงข้อมูลวีเจ: ${error.message}`);
+        } finally {
+            this.resetState(userId);
         }
     }
 
@@ -531,7 +572,7 @@ export class ReportController {
     }
 
 
-    private renderVJRankingCard(results: any[], displayDate: string): LarkCardContent {
+    private renderVJRankingCard(results: any[], displayDate: string, timestamp?: number): LarkCardContent {
         // Sort results by wage descending
         const sortedResults = [...results].sort((a, b) => (b.wage || 0) - (a.wage || 0));
 
@@ -551,6 +592,8 @@ export class ReportController {
                 wage: `${(s.wage || 0).toLocaleString()}`
             };
         });
+
+        const timeStr = timestamp ? new Date(timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
 
         const card: LarkCardContent = {
             config: {
@@ -575,7 +618,7 @@ export class ReportController {
                 },
                 {
                     tag: 'note',
-                    elements: [{ tag: 'plain_text', content: `✨ แสดงทั้งหมด ${results.length} คน | ข้อมูลจาก Mico โดย ${this.getRandomName()}` }]
+                    elements: [{ tag: 'plain_text', content: `✨ แสดงทั้งหมด ${results.length} คน ${timeStr ? `| 🕒 ${timeStr}` : ''} | โดย ${this.getRandomName()}` }]
                 }
             ]
         };
@@ -597,7 +640,21 @@ export class ReportController {
             // Use the full pipeline manager
             this.updateState(userId, 'PROCESSING_EXPORT');
 
-            const savedPath = await this.manager.generateMonthlyReport(date.display);
+            // Send initial progress card
+            await this.bot.sendText(chatId, `🚀 ${botName} กำลังติดต่อ Mico Server...`);
+
+            // To actually show progress to user, we need `updateCard` or similar.
+            // Since we don't have it, let's just send a "Status: ..." message that we delete/update?
+            // Let's stick to the plan: "Progress Bar".
+            // Since we can't edit easily without more code, let's just send intermediate updates for big steps.
+
+            const savedPath = await this.manager.generateMonthlyReport(date.display, undefined, async (msg) => {
+                // Throttle updates or just send key ones?
+                // Let's send a new message for key states if they take long.
+                if (msg.includes('Waiting') || msg.includes('Beautifying')) {
+                    await this.bot.sendText(chatId, `⏳ ${msg}`);
+                }
+            });
 
             // CHECK CANCELLATION: If state is no longer PROCESSING_EXPORT, stop here.
             const currentSession = this.getSession(userId); // Re-fetch session

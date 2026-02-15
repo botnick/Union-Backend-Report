@@ -133,8 +133,93 @@ button {
 
 /* Console Refinement */
 #log-output {
-    mask-image: linear-gradient(to bottom, black 90%, transparent);
     background: hsla(222, 47%, 2%, 0.6) !important;
+    scroll-behavior: smooth;
+}
+
+#log-output:hover {
+    border-color: hsla(199, 89%, 48%, 0.15) !important;
+}
+
+/* Log Output Scrollbar (more visible) */
+#log-output::-webkit-scrollbar {
+    width: 8px;
+}
+
+#log-output::-webkit-scrollbar-track {
+    background: hsla(222, 47%, 8%, 0.5);
+    border-radius: 4px;
+}
+
+#log-output::-webkit-scrollbar-thumb {
+    background: hsla(199, 89%, 48%, 0.25);
+    border-radius: 4px;
+    border: 1px solid hsla(222, 47%, 15%, 0.5);
+}
+
+#log-output::-webkit-scrollbar-thumb:hover {
+    background: hsla(199, 89%, 48%, 0.5);
+}
+
+/* JSON Block Styling */
+.log-json-block {
+    background: hsla(222, 47%, 8%, 0.8);
+    border: 1px solid hsla(199, 89%, 48%, 0.15);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin: 4px 0;
+    font-size: 11px;
+    line-height: 1.5;
+    overflow-x: auto;
+    max-height: 200px;
+    overflow-y: auto;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.log-json-block:hover {
+    border-color: hsla(199, 89%, 48%, 0.35);
+    background: hsla(222, 47%, 10%, 0.9);
+}
+
+.log-json-block.collapsed {
+    max-height: 22px;
+    overflow: hidden;
+    opacity: 0.7;
+}
+
+.log-json-block.collapsed:hover {
+    opacity: 1;
+}
+
+.log-json-key { color: hsl(199, 89%, 60%); }
+.log-json-string { color: hsl(142, 71%, 55%); }
+.log-json-number { color: hsl(25, 95%, 65%); }
+.log-json-bool { color: hsl(280, 80%, 65%); }
+.log-json-null { color: hsl(0, 70%, 60%); }
+
+/* Auto-Scroll Toggle */
+.autoscroll-btn {
+    transition: all 0.3s ease;
+}
+
+.autoscroll-btn.active {
+    color: hsl(199, 89%, 48%) !important;
+    text-shadow: 0 0 8px hsla(199, 89%, 48%, 0.4);
+}
+
+.autoscroll-btn.paused {
+    color: hsl(25, 95%, 65%) !important;
+}
+
+/* Log Entry Animation */
+.log-entry {
+    animation: log-slide-in 0.15s ease-out;
+}
+
+@keyframes log-slide-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 /* Code Editor Specifics */
@@ -154,7 +239,7 @@ button {
     background: hsla(199, 89%, 48%, 0.05) !important;
 }
 
-/* Scrollbar Styling */
+/* Scrollbar Styling (Global) */
 ::-webkit-scrollbar {
     width: 5px;
     height: 5px;
@@ -165,7 +250,7 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: hsla(0, 0%, 100%, 0.05);
+    background: hsla(0, 0%, 100%, 0.08);
     border-radius: 20px;
     border: 1px solid transparent;
     background-clip: padding-box;
