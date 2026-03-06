@@ -24,21 +24,27 @@ export class ReportController {
     private sessions: Map<string, UserSession> = new Map();
     private cache: Map<string, { data: any, timestamp: number }> = new Map();
     private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 Minutes
+    private initReady: Promise<void>;
 
     constructor(bot: LarkBot) {
         this.bot = bot;
         this.mico = new MicoClient();
         this.manager = new MicoReportManager(this.mico);
-        this.init();
+        // Fire-and-forget init — ensureReady() will await it before any API call
+        this.initReady = this.mico.init().then(() => {
+            console.log('[ReportController] MicoClient initialized.');
+        }).catch((err) => {
+            console.error('[ReportController] MicoClient init failed:', err);
+        });
     }
 
-    private async init() {
-        try {
-            await this.mico.init();
-            console.log('ReportController initialized with MicoClient');
-        } catch (error) {
-            console.error('Failed to init MicoClient in ReportController:', error);
-        }
+    /**
+     * Ensures MicoClient is initialized before making API calls.
+     * If the initial init failed, retries via ensureAuthenticated().
+     */
+    private async ensureReady(): Promise<void> {
+        await this.initReady;
+        await this.mico.ensureAuthenticated();
     }
 
     private getSession(userId: string): UserSession {
@@ -442,6 +448,7 @@ export class ReportController {
         try {
             this.updateState(userId, 'PROCESSING_UNION');
             await this.bot.sendText(chatId, this.getRandomMessage('waiting'));
+            await this.ensureReady();
 
             const pageSize = 100;
             const stats = await this.mico.getUnionStatisticsMonthly(date.start, date.end, 1, pageSize);
@@ -510,6 +517,7 @@ export class ReportController {
         try {
             this.updateState(userId, 'PROCESSING_VJ');
             await this.bot.sendText(chatId, this.getRandomMessage('waiting'));
+            await this.ensureReady();
 
             // Fetch first page to get count and determine total pages
             let allResults: any[] = [];
@@ -729,6 +737,7 @@ export class ReportController {
 
             // Send initial progress card
             await this.bot.sendText(chatId, `🚀 ${botName} กำลังติดต่อ Mico Server...`);
+            await this.ensureReady();
 
             const savedPath = await this.manager.generateMonthlyReport(date.display, undefined, async (msg) => {
                 // Throttle updates or just send key ones?
@@ -792,6 +801,7 @@ export class ReportController {
 
         try {
             await this.bot.sendText(chatId, this.getRandomMessage('waiting'));
+            await this.ensureReady();
 
             const now = new Date();
             const year = now.getFullYear();

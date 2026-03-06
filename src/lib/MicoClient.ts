@@ -1,5 +1,4 @@
-
-import axios from 'axios';
+import axios, { type AxiosInstance, type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
@@ -17,21 +16,51 @@ import type {
 
 dotenv.config();
 
+// ─── Constants ───────────────────────────────────────────────────────
 const BASE_URL = 'https://union.micoworld.net/api';
 const TOKEN_FILE = path.resolve(process.cwd(), '.mico_token');
+const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_AUTH_RETRIES = 2;
+const LOG_PREFIX = '[MicoClient]';
 
+// ─── Internal Types ──────────────────────────────────────────────────
+interface SessionData {
+    token: string | null;
+    cookies: string[];
+}
+
+/** Extend Axios config to track retry state without polluting global types */
+interface RetryableConfig extends InternalAxiosRequestConfig {
+    _authRetryCount?: number;
+}
+
+// ─── MicoClient ──────────────────────────────────────────────────────
 export class MicoClient {
-    private api: ReturnType<typeof axios.create>;
+    private readonly api: AxiosInstance;
     private token: string | null = null;
     private cookies: string[] = [];
     private user: MicoUser | null = null;
 
+    /** Tracks the in-flight init so multiple callers share the same promise. */
+    private initPromise: Promise<void> | null = null;
+
+    /**
+     * When a 401 triggers a re-login, all concurrent requests wait on the
+     * same shared promise instead of each spawning its own login call.
+     * This replaces the old setInterval polling (which could leak).
+     */
+    private refreshPromise: Promise<void> | null = null;
+
+    // Store interceptor IDs for cleanup in dispose()
+    private requestInterceptorId: number;
+    private responseInterceptorId: number;
+
     constructor() {
         this.api = axios.create({
             baseURL: BASE_URL,
+            timeout: REQUEST_TIMEOUT_MS,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
-                // 'Origin': 'https://union.micoworld.net', 
                 'Referer': 'https://union.micoworld.net/',
                 'Accept': 'application/json, text/plain, */*',
                 'Accept-Language': 'en-US,en;q=0.9,th-TH;q=0.8,th;q=0.7',
@@ -46,154 +75,213 @@ export class MicoClient {
             }
         });
 
-        // Request Interceptor: Attach Token & Cookies
-        this.api.interceptors.request.use(config => {
-            // Ensure headers object exists
-            if (!config.headers) {
-                config.headers = new axios.AxiosHeaders();
+        // ── Request Interceptor: attach token & cookies ──────────────
+        this.requestInterceptorId = this.api.interceptors.request.use(
+            (config: InternalAxiosRequestConfig) => {
+                if (this.token) {
+                    config.headers.set('Authorization', `Bearer ${this.token}`);
+                }
+                if (this.cookies.length > 0) {
+                    config.headers.set('Cookie', this.cookies.join('; '));
+                }
+                return config;
             }
+        );
 
-            if (this.token) {
-                config.headers['Authorization'] = `Bearer ${this.token}`;
-            }
-            if (this.cookies.length > 0) {
-                // Construct Cookie header
-                const cookieHeader = this.cookies.join('; ');
-                config.headers['Cookie'] = cookieHeader;
-            }
-            return config;
-        });
+        // ── Response Interceptor: capture cookies + auto-retry on auth failure ──
+        this.responseInterceptorId = this.api.interceptors.response.use(
+            (response) => {
+                // Capture Set-Cookie headers
+                const setCookie = response.headers['set-cookie'];
+                if (setCookie) {
+                    this.updateCookies(setCookie);
+                }
 
-        // Response Interceptor: Capture Cookies
-        this.api.interceptors.response.use(response => {
-            const setCookie = response.headers['set-cookie'];
-            if (setCookie) {
-                this.updateCookies(setCookie);
+                // Mico API sometimes returns 200 with an auth error in the body
+                if (
+                    response.data &&
+                    typeof response.data.msg === 'string' &&
+                    response.data.msg.includes('Authentication credentials were not provided')
+                ) {
+                    console.warn(`${LOG_PREFIX} Token expired (detected in response body). Re-authenticating...`);
+                    return this.handleAuthFailure(response.config as RetryableConfig);
+                }
+
+                return response;
+            },
+            (error: AxiosError) => {
+                const config = error.config as RetryableConfig | undefined;
+
+                // Auto-retry on 401/403
+                if (config && error.response && [401, 403].includes(error.response.status)) {
+                    console.warn(`${LOG_PREFIX} Got ${error.response.status}. Re-authenticating...`);
+                    return this.handleAuthFailure(config);
+                }
+
+                return Promise.reject(error);
             }
-            return response;
-        }, error => {
-            return Promise.reject(error);
-        });
+        );
 
         this.loadSession();
     }
 
-    private updateCookies(newCookies: string[]) {
+    // ─── Auth Retry (no memory leaks) ────────────────────────────────
+
+    /**
+     * Handles an authentication failure by re-logging in and retrying
+     * the original request. Multiple concurrent failures share a single
+     * login promise — no setInterval, no polling, no leaks.
+     */
+    private async handleAuthFailure(config: RetryableConfig): Promise<AxiosResponse> {
+        const retryCount = config._authRetryCount ?? 0;
+
+        if (retryCount >= MAX_AUTH_RETRIES) {
+            throw new Error(`${LOG_PREFIX} Authentication failed after ${MAX_AUTH_RETRIES} retries`);
+        }
+
+        // All concurrent failures share the same refresh promise
+        if (!this.refreshPromise) {
+            this.refreshPromise = this.performLogin().finally(() => {
+                this.refreshPromise = null;
+            });
+        }
+
+        await this.refreshPromise;
+
+        // Retry the original request with bumped retry counter
+        config._authRetryCount = retryCount + 1;
+        config.headers.set('Authorization', `Bearer ${this.token}`);
+        return this.api.request(config);
+    }
+
+    // ─── Session Persistence ─────────────────────────────────────────
+
+    private loadSession(): void {
+        if (!fs.existsSync(TOKEN_FILE)) return;
+
+        try {
+            const raw = fs.readFileSync(TOKEN_FILE, 'utf-8');
+            const data: SessionData = JSON.parse(raw);
+            if (data.token) this.token = data.token;
+            if (Array.isArray(data.cookies)) this.cookies = data.cookies;
+        } catch {
+            console.warn(`${LOG_PREFIX} Failed to parse session file — starting fresh.`);
+        }
+    }
+
+    private saveSession(): void {
+        const data: SessionData = { token: this.token, cookies: this.cookies };
+        fs.writeFileSync(TOKEN_FILE, JSON.stringify(data, null, 2));
+    }
+
+    private updateCookies(newCookies: string[]): void {
         const cookieMap = new Map<string, string>();
 
-        // Load existing
-        this.cookies.forEach(c => {
-            const parts = c.split(';')[0].split('=');
-            if (parts.length >= 2) {
-                const key = parts[0].trim();
-                cookieMap.set(key, c.split(';')[0]);
+        // Merge existing + new (new wins)
+        for (const raw of [...this.cookies, ...newCookies]) {
+            const pair = raw.split(';')[0]; // strip attributes
+            const eqIdx = pair.indexOf('=');
+            if (eqIdx > 0) {
+                cookieMap.set(pair.substring(0, eqIdx).trim(), pair);
             }
-        });
-
-        // Update with new
-        newCookies.forEach(c => {
-            const parts = c.split(';')[0].split('=');
-            if (parts.length >= 2) {
-                const key = parts[0].trim();
-                cookieMap.set(key, c.split(';')[0]);
-            }
-        });
+        }
 
         this.cookies = Array.from(cookieMap.values());
         this.saveSession();
     }
 
-    private loadSession() {
-        if (fs.existsSync(TOKEN_FILE)) {
-            try {
-                const data = fs.readFileSync(TOKEN_FILE, 'utf-8');
-                const parsed = JSON.parse(data);
-                if (parsed.token) {
-                    this.token = parsed.token;
-                }
-                if (parsed.cookies && Array.isArray(parsed.cookies)) {
-                    this.cookies = parsed.cookies;
-                }
-            } catch (e) {
-                console.warn('Failed to parse session file.');
-            }
-        }
-    }
-
-    private saveSession() {
-        fs.writeFileSync(TOKEN_FILE, JSON.stringify({
-            token: this.token,
-            cookies: this.cookies
-        }, null, 2));
-    }
+    // ─── Initialization ──────────────────────────────────────────────
 
     /**
-     * Initializes the client.
-     * Checks for existing session token and validates it. 
-     * If invalid or missing, attempts to log in using credentials from .env.
+     * Initializes the client. Safe to call multiple times — only the first
+     * call actually runs; subsequent calls await the same promise.
+     *
+     * Flow:
+     * 1. If a saved token exists → validate it via `fetchBaseInfo()`
+     * 2. If valid → done (NO login)
+     * 3. If expired/missing → login with credentials from .env
      */
-    public async init() {
+    public async init(): Promise<void> {
+        if (!this.initPromise) {
+            this.initPromise = this.performInit().catch((err) => {
+                // Clear the cached promise so the next call retries
+                this.initPromise = null;
+                throw err;
+            });
+        }
+        return this.initPromise;
+    }
+
+    private async performInit(): Promise<void> {
         if (this.token) {
-            // Validate existing token
             try {
                 await this.fetchBaseInfo();
-                // console.log('Token is valid. Logged in as:', this.user?.username);
-                return;
-            } catch (e) {
-                // console.log('Session expired or error. Refreshing...', e instanceof Error ? e.message : e);
+                console.log(`${LOG_PREFIX} Existing token is valid.`);
+                return; // Token still works — no login needed
+            } catch {
+                console.log(`${LOG_PREFIX} Saved token expired. Will re-login.`);
             }
         }
 
-        // Login if no token or invalid
-        await this.login();
+        // No token or token expired — login
+        await this.performLogin();
     }
 
     /**
-     * Authenticates with MicoWorld using credentials from .env (MICO_USERNAME, MICO_PASSWORD).
-     * Saves the session token and cookies to .mico_token for persistence.
-     * @throws Error if credentials are missing or login fails.
+     * Public guard: ensures the client has been initialized at least once.
+     * If init previously failed, retries automatically.
      */
-    private async login() {
+    public async ensureAuthenticated(): Promise<void> {
+        await this.init();
+    }
+
+    // ─── Login ───────────────────────────────────────────────────────
+
+    /**
+     * Authenticates with MicoWorld using MICO_USERNAME/MICO_PASSWORD from .env.
+     * @throws Error if credentials are missing or the login request fails.
+     */
+    private async performLogin(): Promise<void> {
         const username = process.env.MICO_USERNAME;
         const password = process.env.MICO_PASSWORD;
 
         if (!username || !password) {
-            throw new Error('MICO_USERNAME and MICO_PASSWORD must be set in .env');
+            throw new Error(`${LOG_PREFIX} MICO_USERNAME and MICO_PASSWORD must be set in .env`);
         }
 
         try {
-            // Send Content-Type for POST
             const res = await this.api.post<MicoLoginResponse>('/auth/login/', {
                 username,
                 password
             }, {
-                headers: {
-                    'Content-Type': 'application/json;charset=UTF-8'
-                }
+                headers: { 'Content-Type': 'application/json;charset=UTF-8' }
             });
 
-            const token = res.data.token;
-
+            const { token } = res.data;
             if (!token) {
-                throw new Error('No token returned from login');
+                throw new Error(`${LOG_PREFIX} No token returned from login`);
             }
 
             this.token = token;
             this.saveSession();
-            console.log('Login successful.');
+            console.log(`${LOG_PREFIX} Login successful.`);
 
-            // Fetch info to confirm
+            // Validate by fetching user info
             await this.fetchBaseInfo();
-
-        } catch (e: any) {
-            console.error('Login failed:', e.response?.data || e.message);
-            throw e;
+        } catch (err: unknown) {
+            const axErr = err as AxiosError;
+            console.error(`${LOG_PREFIX} Login failed:`, axErr.response?.data ?? axErr.message);
+            throw err;
         }
     }
 
+    // ─── API Methods ─────────────────────────────────────────────────
+
+    /** Fetches base user info. Also used to validate the current token. */
     public async fetchBaseInfo(): Promise<MicoUser> {
-        const timestamp = Date.now();
-        const res = await this.api.get<MicoBaseInfoResponse>(`/auth/base_info/?_t=${timestamp}`);
+        const res = await this.api.get<MicoBaseInfoResponse>(
+            `/auth/base_info/?_t=${Date.now()}`
+        );
 
         if (res.data.code !== 200) {
             throw new Error(`API Error: ${res.data.msg}`);
@@ -213,57 +301,40 @@ export class MicoClient {
     public async getUnionStatisticsMonthly(
         startTime: string,
         endTime: string,
-        page: number = 1,
-        pageSize: number = 10
+        page = 1,
+        pageSize = 10
     ): Promise<MicoUnionStatisticsResponse['data']> {
-        // ... implementation ...
-        const timestamp = Date.now();
-        const url = `/data/union_statistics_monthly/?page=${page}&start_time=${startTime}&page_size=${pageSize}&end_time=${endTime}&_t=${timestamp}`;
-
+        const url = `/data/union_statistics_monthly/?page=${page}&start_time=${startTime}&page_size=${pageSize}&end_time=${endTime}&_t=${Date.now()}`;
         const res = await this.api.get<MicoUnionStatisticsResponse>(url);
 
         if (res.data.code !== 200) {
             throw new Error(`API Error: ${res.data.msg}`);
         }
-
         return res.data.data;
     }
 
     /**
      * Retrieves detailed streamer statistics (income, etc.) for a specific period.
-     * @param startTime Format M/YYYY (e.g., "2/2026")
-     * @param endTime Format M/YYYY (e.g., "2/2026")
+     * @param startTime Format M/YYYY (e.g., "2/2026") or YYYY-MM (auto-converted)
+     * @param endTime Format M/YYYY or YYYY-MM
      * @param page Page number (default 1)
      * @param pageSize Page size (default 10)
      */
     public async getIncomeStatMonth(
         startTime: string,
         endTime: string,
-        page: number = 1,
-        pageSize: number = 10
+        page = 1,
+        pageSize = 10
     ): Promise<MicoStreamerStatsResponse['data']> {
-        // API requires M/YYYY format (e.g., 2/2026)
-        // Convert YYYY-MM to M/YYYY if necessary
-        const formatParam = (dateStr: string) => {
-            if (/^\d{4}-\d{2}$/.test(dateStr)) {
-                const [year, month] = dateStr.split('-');
-                return `${parseInt(month, 10)}/${year}`;
-            }
-            return dateStr;
-        };
+        const start = this.toMicoMonthFormat(startTime);
+        const end = this.toMicoMonthFormat(endTime);
 
-        const start = formatParam(startTime);
-        const end = formatParam(endTime);
-
-        const timestamp = Date.now();
-        const url = `/data/income_stat_month_new/?page=${page}&start_time=${encodeURIComponent(start)}&page_size=${pageSize}&end_time=${encodeURIComponent(end)}&_t=${timestamp}`;
-
+        const url = `/data/income_stat_month_new/?page=${page}&start_time=${encodeURIComponent(start)}&page_size=${pageSize}&end_time=${encodeURIComponent(end)}&_t=${Date.now()}`;
         const res = await this.api.get<MicoStreamerStatsResponse>(url);
 
         if (res.data.code !== 200) {
             throw new Error(`API Error: ${res.data.msg}`);
         }
-
         return res.data.data;
     }
 
@@ -272,15 +343,12 @@ export class MicoClient {
      * @param userId The numeric User ID (e.g., 64206498)
      */
     public async getIncomeLiveRecord(userId: number | string): Promise<MicoIncomeLiveRecordResponse['data']> {
-        const timestamp = Date.now();
-        const url = `/streamer/income_liverecord/?user_id=${userId}&_t=${timestamp}`;
-
+        const url = `/streamer/income_liverecord/?user_id=${userId}&_t=${Date.now()}`;
         const res = await this.api.get<MicoIncomeLiveRecordResponse>(url);
 
         if (res.data.code !== 200) {
             throw new Error(`API Error: ${res.data.msg}`);
         }
-
         return res.data.data;
     }
 
@@ -291,24 +359,22 @@ export class MicoClient {
      * @param endTime Format M/YYYY (e.g., "2/2026")
      * @param email Email address to receive the report
      */
-    public async exportStreamerStatistics(startTime: string, endTime: string, email: string): Promise<MicoExportResponse> {
-        const timestamp = Date.now();
-        const url = `/data/income_stat_month_new/?start_time=${encodeURIComponent(startTime)}&end_time=${encodeURIComponent(endTime)}&email=${encodeURIComponent(email)}&export_flag=1&_t=${timestamp}`;
-
+    public async exportStreamerStatistics(
+        startTime: string,
+        endTime: string,
+        email: string
+    ): Promise<MicoExportResponse> {
+        const url = `/data/income_stat_month_new/?start_time=${encodeURIComponent(startTime)}&end_time=${encodeURIComponent(endTime)}&email=${encodeURIComponent(email)}&export_flag=1&_t=${Date.now()}`;
         const res = await this.api.get<MicoExportResponse>(url);
 
-        // Check for cooldown message
-        // Example: "The anchor data is being exported to the mailbox ..., and can be re-exported in 164 seconds."
+        // Handle rate-limit cooldown
         if (typeof res.data.data === 'string' && res.data.data.includes('can be re-exported in')) {
             const match = res.data.data.match(/in (\d+) seconds/);
-            if (match && match[1]) {
+            if (match?.[1]) {
                 const waitSeconds = parseInt(match[1], 10);
-                console.log(`⚠️  Export Rate Limit Hit. Cooling down for ${waitSeconds} seconds...`);
-
-                // Wait with countdown
+                console.log(`${LOG_PREFIX} ⚠️ Export rate limit hit. Cooling down for ${waitSeconds}s...`);
                 await this.countdown(waitSeconds);
-
-                console.log('🔄 Retrying export...');
+                console.log(`${LOG_PREFIX} 🔄 Retrying export...`);
                 return this.exportStreamerStatistics(startTime, endTime, email);
             }
         }
@@ -316,80 +382,75 @@ export class MicoClient {
         if (res.data.code !== 200) {
             throw new Error(`API Error: ${res.data.msg}`);
         }
-
         return res.data;
-    }
-
-    private async countdown(seconds: number) {
-        for (let i = seconds; i > 0; i--) {
-            if (i % 10 === 0 || i <= 5) { // Log every 10s or last 5s
-                process.stdout.write(`\r⏳ Retrying in ${i}s... `);
-            }
-            await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-        process.stdout.write('\r✅ Ready to retry!        \n');
     }
 
     /**
      * Retrieves H5 Record Info (Summary) for a specific user and month.
      * NOTE: Restricted to a 6-month lookback window.
-     * @param uid Internal UID (retrieved from getIncomeLiveRecord)
-     * @param year Year (e.g. 2026)
-     * @param month Month (1-12)
      */
-    public async getH5RecordInfo(uid: string, year: number | string, month: number | string): Promise<MicoH5RecordInfoResponse['data']> {
+    public async getH5RecordInfo(
+        uid: string,
+        year: number | string,
+        month: number | string
+    ): Promise<MicoH5RecordInfoResponse['data']> {
         this.validateH5Date(Number(year), Number(month));
-        const timestamp = Date.now();
-        const url = `/users/h5record/getInfo?uid=${uid}&year=${year}&month=${month}&_t=${timestamp}`;
 
+        const url = `/users/h5record/getInfo?uid=${uid}&year=${year}&month=${month}&_t=${Date.now()}`;
         const res = await this.api.get<MicoH5RecordInfoResponse>(url);
 
         if (res.data.code !== 200) {
             throw new Error(`API Error: ${res.data.msg}`);
         }
-
         return res.data.data;
     }
 
     /**
      * Retrieves a list of H5 Records (Live/Game sessions) for a specific user and month.
      * NOTE: Restricted to a 6-month lookback window.
-     * @param uid Internal UID
-     * @param year Year
-     * @param month Month
-     * @param page Page number
-     * @param size Page size
      */
     public async getH5RecordList(
         uid: string,
         year: number | string,
         month: number | string,
-        page: number = 1,
-        size: number = 25
+        page = 1,
+        size = 25
     ): Promise<MicoH5RecordListResponse['data']> {
         this.validateH5Date(Number(year), Number(month));
-        const timestamp = Date.now();
-        const url = `/users/h5record/getList?uid=${uid}&year=${year}&month=${month}&page=${page}&size=${size}&_t=${timestamp}`;
 
+        const url = `/users/h5record/getList?uid=${uid}&year=${year}&month=${month}&page=${page}&size=${size}&_t=${Date.now()}`;
         const res = await this.api.get<MicoH5RecordListResponse>(url);
 
         if (res.data.code !== 200) {
             throw new Error(`API Error: ${res.data.msg}`);
         }
-
         return res.data.data;
     }
 
-    public getToken() {
-        return this.token;
+    // ─── Helpers ──────────────────────────────────────────────────────
+
+    /** Converts YYYY-MM to M/YYYY (Mico API format). Passes through if already correct. */
+    private toMicoMonthFormat(dateStr: string): string {
+        if (/^\d{4}-\d{2}$/.test(dateStr)) {
+            const [year, month] = dateStr.split('-');
+            return `${parseInt(month, 10)}/${year}`;
+        }
+        return dateStr;
     }
 
-    private validateH5Date(year: number, month: number) {
-        const now = new Date();
-        const curYear = now.getFullYear();
-        const curMonth = now.getMonth() + 1; // 1-indexed
+    private async countdown(seconds: number): Promise<void> {
+        for (let i = seconds; i > 0; i--) {
+            if (i % 10 === 0 || i <= 5) {
+                process.stdout.write(`\r⏳ Retrying in ${i}s... `);
+            }
+            await new Promise<void>(resolve => setTimeout(resolve, 1000));
+        }
+        process.stdout.write('\r✅ Ready to retry!        \n');
+    }
 
-        const diff = (curYear - year) * 12 + (curMonth - month);
+    private validateH5Date(year: number, month: number): void {
+        const now = new Date();
+        const diff = (now.getFullYear() - year) * 12 + (now.getMonth() + 1 - month);
 
         if (diff < 0) {
             throw new Error('H5 Record Error: Future date is not allowed.');
@@ -399,7 +460,23 @@ export class MicoClient {
         }
     }
 
+    // ─── Accessors ───────────────────────────────────────────────────
+
+    public getToken(): string | null {
+        return this.token;
+    }
+
     public getUser(): MicoUser | null {
         return this.user;
+    }
+
+    // ─── Cleanup ─────────────────────────────────────────────────────
+
+    /** Ejects interceptors to allow proper garbage collection. */
+    public dispose(): void {
+        this.api.interceptors.request.eject(this.requestInterceptorId);
+        this.api.interceptors.response.eject(this.responseInterceptorId);
+        this.initPromise = null;
+        this.refreshPromise = null;
     }
 }
