@@ -286,10 +286,10 @@ export class ExcelProcessor {
         // --- Dashboard and Formula Phase ---
         // We insert the summary dashboard FIRST to finalize row numbers before applying formulas.
         console.log("Creating Union Income Summary Dashboard...");
-        worksheet.spliceRows(1, 0, [], [], [], [], [], [], []);
+        worksheet.spliceRows(1, 0, [], [], [], [], [], [], [], []);
 
         // Clear any potential default values in the dashboard rows
-        for (let i = 1; i <= 7; i++) {
+        for (let i = 1; i <= 8; i++) {
             worksheet.getRow(i).eachCell({ includeEmpty: true }, (cell) => {
                 cell.value = null;
                 cell.fill = { type: 'pattern', pattern: 'none' };
@@ -301,7 +301,8 @@ export class ExcelProcessor {
         const baseShareRow = worksheet.getRow(3);
         const recruitBonusRow = worksheet.getRow(4);
         const pushBonusRow = worksheet.getRow(5);
-        const grandTotalRow = worksheet.getRow(6);
+        const activeWageRow = worksheet.getRow(6);
+        const grandTotalRow = worksheet.getRow(7);
 
         // Merging cells for title to prevent layout issues
         worksheet.mergeCells('A1:D1');
@@ -310,7 +311,7 @@ export class ExcelProcessor {
 
         // Helper to find column letters after shift (Row 8 is now headers)
         const refreshMap: { [key: string]: number } = {};
-        worksheet.getRow(8).eachCell({ includeEmpty: true }, (cell, colNum) => {
+        worksheet.getRow(9).eachCell({ includeEmpty: true }, (cell, colNum) => {
             const val = cell.value ? cell.value.toString().toLowerCase() : '';
             if (val) refreshMap[val] = colNum;
         });
@@ -322,7 +323,7 @@ export class ExcelProcessor {
         const totalVjCol = refreshMap['รวมรายได้วีเจ (thb)'];
 
         const lastDataRow = worksheet.actualRowCount;
-        const dataStartRow = 9; // Data starts at Row 9 because of Dashboard (1-7) and Header (8)
+        const dataStartRow = 10; // Data starts at Row 10 because of Dashboard (1-8) and Header (9)
 
         if (baseShareCol && recruitBonusCol && pushAmountCol && totalUnionCol) {
             const baseShareLetter = this.colNumberToLetter(baseShareCol);
@@ -332,7 +333,7 @@ export class ExcelProcessor {
 
             summaryTitleRow.height = 30;
             summaryHeaderRow.height = 25;
-            [baseShareRow, recruitBonusRow, pushBonusRow, grandTotalRow].forEach(r => r.height = 22);
+            [baseShareRow, recruitBonusRow, pushBonusRow, activeWageRow, grandTotalRow].forEach(r => r.height = 22);
 
             summaryHeaderRow.getCell(1).value = 'หมวดหมู่';
             summaryHeaderRow.getCell(2).value = 'ยอดรวม (THB)';
@@ -354,13 +355,22 @@ export class ExcelProcessor {
             pushBonusRow.getCell(1).value = 'ยอดโบนัสผลักดัน';
             pushBonusRow.getCell(2).value = { formula: `SUM(${pushAmountLetter}${dataStartRow}:${pushAmountLetter}${lastDataRow})` };
 
+            // Active VJ Wage Total — sum wage only where wage >= 10000
+            const wageLetter2 = this.colNumberToLetter(refreshMap['wage'] || 0);
+            activeWageRow.getCell(1).value = 'ยอดรวม Wage VJ Active';
+            if (wageLetter2) {
+                activeWageRow.getCell(2).value = {
+                    formula: `SUMPRODUCT((${wageLetter2}${dataStartRow}:${wageLetter2}${lastDataRow}>=10000)*(${wageLetter2}${dataStartRow}:${wageLetter2}${lastDataRow}))`
+                };
+            }
+
             grandTotalRow.getCell(1).value = 'รวมรายได้สังกัดสุทธิ';
             grandTotalRow.getCell(1).font = { bold: true, size: 12 };
             grandTotalRow.getCell(2).value = { formula: `SUM(${totalUnionLetter}${dataStartRow}:${totalUnionLetter}${lastDataRow})` };
             grandTotalRow.getCell(2).font = { bold: true, color: { argb: 'FFFF3385' }, size: 12 };
 
-            // Apply borders and alignment to the whole dashboard block (Rows 2-6)
-            for (let i = 2; i <= 6; i++) {
+            // Apply borders and alignment to the whole dashboard block (Rows 2-7)
+            for (let i = 2; i <= 7; i++) {
                 const row = worksheet.getRow(i);
                 [1, 2].forEach(c => {
                     const cell = row.getCell(c);
@@ -382,9 +392,9 @@ export class ExcelProcessor {
         console.log("Applying dynamic formulas and styling to data rows...");
 
         worksheet.eachRow((row, rowNum) => {
-            if (rowNum < 8) return; // Skip Dashboard
+            if (rowNum < 9) return; // Skip Dashboard (1-8)
 
-            if (rowNum === 8) {
+            if (rowNum === 9) {
                 // Style Main Header
                 row.height = 45;
                 row.eachCell({ includeEmpty: true }, (cell) => {
@@ -471,14 +481,14 @@ export class ExcelProcessor {
         worksheet.columns.forEach((column, colIdx) => {
             let maxLength = 0;
             const colNumber = colIdx + 1;
-            const headerVal = worksheet.getCell(8, colNumber).value?.toString().toLowerCase() || '';
+            const headerVal = worksheet.getCell(9, colNumber).value?.toString().toLowerCase() || '';
             const isToggleCol = headerVal.includes('โบนัสผลักดัน') || headerVal.includes('recruit bonus');
 
             if (column && column.eachCell) {
                 column.eachCell({ includeEmpty: true }, (cell) => {
                     // Skip dashboard rows for width calculation (Rows 1-7)
                     const rowNum = Number(cell.row);
-                    if (rowNum < 8) return;
+                    if (rowNum < 9) return;
                     const columnLength = cell.value ? cell.value.toString().length : 10;
                     if (columnLength > maxLength) maxLength = columnLength;
                 });
@@ -490,8 +500,8 @@ export class ExcelProcessor {
         });
 
         // --- Final Adjustments (Freeze & Filter) ---
-        worksheet.autoFilter = { from: { row: 8, column: 1 }, to: { row: 8, column: worksheet.columnCount } };
-        worksheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 8, topLeftCell: 'A9', activeCell: 'A9' }];
+        worksheet.autoFilter = { from: { row: 9, column: 1 }, to: { row: 9, column: worksheet.columnCount } };
+        worksheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 9, topLeftCell: 'A10', activeCell: 'A10' }];
 
         // --- Hide Internal Columns ---
         const columnsToHideFinal = [
@@ -500,7 +510,7 @@ export class ExcelProcessor {
             'anchorid', 'gender', 'vclass', 'livewage', 'audiowage', 'livemin', 'gamemin'
         ];
 
-        worksheet.getRow(8).eachCell((cell, colNum) => {
+        worksheet.getRow(9).eachCell((cell, colNum) => {
             const val = cell.value ? cell.value.toString().toLowerCase() : '';
             if (columnsToHideFinal.includes(val)) worksheet.getColumn(colNum).hidden = true;
         });
@@ -534,9 +544,9 @@ export class ExcelProcessor {
         { level: 1, target: 10000, days: 15, share: 0.136, newVj: 0, recruit: 0 },
         { level: 2, target: 20000, days: 15, share: 0.144, newVj: 0, recruit: 0 },
         { level: 3, target: 30000, days: 15, share: 0.152, newVj: 0, recruit: 0 },
-        { level: 4, target: 40000, days: 15, share: 0.160, newVj: 2000, recruit: 1000 },
-        { level: 5, target: 50000, days: 15, share: 0.165, newVj: 3000, recruit: 1000 },
-        { level: 6, target: 80000, days: 15, share: 0.173, newVj: 3000, recruit: 1000 },
+        { level: 4, target: 40000, days: 15, share: 0.160, newVj: 2000, recruit: 500 },
+        { level: 5, target: 50000, days: 15, share: 0.165, newVj: 3000, recruit: 500 },
+        { level: 6, target: 80000, days: 15, share: 0.173, newVj: 3000, recruit: 500 },
         { level: 7, target: 100000, days: 12, share: 0.175, newVj: 5000, recruit: 1000 },
         { level: 8, target: 150000, days: 12, share: 0.177, newVj: 5000, recruit: 1000 },
         { level: 9, target: 200000, days: 12, share: 0.181, newVj: 5000, recruit: 1500 },
