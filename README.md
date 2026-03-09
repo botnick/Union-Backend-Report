@@ -119,10 +119,10 @@ A summary dashboard is automatically inserted at the top of each generated repor
 | 3 | ยอดส่วนแบ่งพื้นฐาน | `SUM(ส่วนแบ่งสังกัดพื้นฐาน)` |
 | 4 | ยอดโบนัส Recruit | `SUM(Recruit Bonus THB)` |
 | 5 | ยอดโบนัสผลักดัน | `SUM(โบนัสวีเจใหม่ THB)` |
-| 6 | **ยอดรวม Wage VJ Active** | `SUMPRODUCT((wage>=10000)*wage)` |
+| 6 | **ยอดรวม Wage VJ Active** | `SUMPRODUCT((totalDay>=10)*(wage>=10000)*wage)` |
 | 7 | **รวมรายได้สังกัดสุทธิ** | `SUM(รวมรายได้สังกัด THB)` |
 
-> **Active VJ** = VJ with monthly wage ≥ 10,000
+> **Active VJ** = VJ with `totalDay ≥ 10` AND `wage ≥ 10,000`
 
 ---
 

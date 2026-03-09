@@ -355,12 +355,13 @@ export class ExcelProcessor {
             pushBonusRow.getCell(1).value = 'ยอดโบนัสผลักดัน';
             pushBonusRow.getCell(2).value = { formula: `SUM(${pushAmountLetter}${dataStartRow}:${pushAmountLetter}${lastDataRow})` };
 
-            // Active VJ Wage Total — sum wage only where wage >= 10000
+            // Active VJ Wage Total — sum wage where totalDay >= 10 AND wage >= 10000
             const wageLetter2 = this.colNumberToLetter(refreshMap['wage'] || 0);
+            const totalDayLetter = this.colNumberToLetter(refreshMap['totalday'] || 0);
             activeWageRow.getCell(1).value = 'ยอดรวม Wage VJ Active';
-            if (wageLetter2) {
+            if (wageLetter2 && totalDayLetter) {
                 activeWageRow.getCell(2).value = {
-                    formula: `SUMPRODUCT((${wageLetter2}${dataStartRow}:${wageLetter2}${lastDataRow}>=10000)*(${wageLetter2}${dataStartRow}:${wageLetter2}${lastDataRow}))`
+                    formula: `SUMPRODUCT((${totalDayLetter}${dataStartRow}:${totalDayLetter}${lastDataRow}>=10)*(${wageLetter2}${dataStartRow}:${wageLetter2}${lastDataRow}>=10000)*(${wageLetter2}${dataStartRow}:${wageLetter2}${lastDataRow}))`
                 };
             }
 

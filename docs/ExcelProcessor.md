@@ -78,14 +78,14 @@ A summary block is automatically inserted at rows 1–7 of each report:
 | 3 | ยอดส่วนแบ่งพื้นฐาน | `SUM(ส่วนแบ่งสังกัดพื้นฐาน)` |
 | 4 | ยอดโบนัส Recruit | `SUM(Recruit Bonus THB)` |
 | 5 | ยอดโบนัสผลักดัน | `SUM(โบนัสวีเจใหม่ THB)` |
-| 6 | **ยอดรวม Wage VJ Active** | `SUMPRODUCT((wage>=10000)*wage)` |
+| 6 | **ยอดรวม Wage VJ Active** | `SUMPRODUCT((totalDay>=10)*(wage>=10000)*wage)` |
 | 7 | **รวมรายได้สังกัดสุทธิ** | `SUM(รวมรายได้สังกัด THB)` |
 
 > **Row 8** = empty spacer · **Row 9** = header row · **Row 10+** = data rows
 
 ### Active VJ Definition
 
-An **Active VJ** is defined as a VJ with `wage ≥ 10,000`. Row 6 calculates the total combined wage of all active VJs using an Excel `SUMPRODUCT` formula.
+An **Active VJ** is defined as a VJ with `totalDay ≥ 10` AND `wage ≥ 10,000`. Row 6 calculates the total combined wage of all active VJs using an Excel `SUMPRODUCT` formula with both conditions.
 
 ---
 
